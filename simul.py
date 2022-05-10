@@ -1,8 +1,7 @@
 import numpy as np
-from multiprocessing import Process
-import pickle
-from ammlib import Logistic, Market, LiquidityProviderCstDelta, LiquidityProviderAMMSqrt, LogisticTools
-from ammlib.lpopt import LiquidityProviderHJB, NumericalParams
+from ammlib import Logistic, LogisticTools, Market,\
+                   BaseOracle, PerfectOracle, LaggedOracle,\
+                   LiquidityProviderCstDelta, LiquidityProviderAMMSqrt, LiquidityProviderBestClosedForm
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib as mpl
@@ -11,50 +10,52 @@ warnings.filterwarnings("ignore")
 
 
 currencies = ['BTC', 'ETH']
-init_prices = np.array([40000., 3000.])
-mu = np.zeros(2)
+init_swap_price_01 = 3000. / 40000.
+mu = 0.
 scale = 1./252.
-volatilities = np.array([0.4, 0.4])
-rho = 0.5
-Sigma = scale * np.array([[volatilities[0]**2, rho * volatilities[0] * volatilities[1]],
-                  [rho * volatilities[0] * volatilities[1], volatilities[1]**2]])
-sizes = np.array([1000., 2000.])
+sigma = 0.2 * np.sqrt(scale)
+
+sizes = np.array([1./40.])
 nb_sizes = sizes.shape[0]
 
-lambda_ = 100.
-a = 0.
-b = 2e3
+lambda_ = 45.
+a = -1.8
+b = 1300.
 
 intensity_functions_01_object = [Logistic(lambda_, a, b) for _ in range(nb_sizes)]
 intensity_functions_10_object = [Logistic(lambda_, a, b) for _ in range(nb_sizes)]
 
-market = Market(currencies, init_prices, mu, Sigma, sizes, intensity_functions_01_object, intensity_functions_10_object)
+market = Market(currencies, init_swap_price_01, mu, sigma, sizes, intensity_functions_01_object, intensity_functions_10_object)
 
 initial_inventories = 20. * np.array([1., 10. * 4./3.])
 initial_cash = 0.
 
 lps = []
 
+sid = 24.*60.*60.
 
-deltas = np.arange(1, 25, 1)
-for delta in deltas:
-    lps.append(LiquidityProviderCstDelta('cst%d' % delta, initial_inventories.copy(),
-                                         initial_cash, market, delta * 1e-4))
 
+deltas = np.arange(1, 10, 1)
 for delta in deltas:
-    lps.append(LiquidityProviderAMMSqrt('cfmm%d' % delta, initial_inventories.copy(), initial_cash, market,
-                                        delta * 1e-4))
+    lps.append(LiquidityProviderCstDelta('PO+%dbp' % delta, initial_inventories.copy(),
+                                         initial_cash, market, PerfectOracle(), delta * 1e-4))
+    lps.append(LiquidityProviderCstDelta('Lagged10+%dbp' % delta, initial_inventories.copy(),
+                                         initial_cash, market, LaggedOracle(10./sid), delta * 1e-4))
+    lps.append(LiquidityProviderAMMSqrt('CFMM+%dbp' % delta, initial_inventories.copy(), initial_cash, market,
+                                        BaseOracle(), delta * 1e-4))
 
 lt = LogisticTools(lambda_, a, b)
-mq = lt.myopic_quote
+mq = lt.delta(0.)
+lps.append(LiquidityProviderCstDelta('PO+myopic', initial_inventories.copy(), initial_cash, market, PerfectOracle(), mq))
 
-lps.append(LiquidityProviderCstDelta('myopic', initial_inventories.copy(), initial_cash, market, mq))
+gammas = [0.] #, 1., 5., 10., 50., 100., 500.]
 
+for gamma in gammas:
+    lp_BCF = LiquidityProviderBestClosedForm('PO+BCF%.0e' % gamma, initial_inventories.copy(), initial_cash,
+                                             market, PerfectOracle(), gamma)
+    lps.append(lp_BCF)
 
-
-plt.rcParams["figure.figsize"] = [16, 9]
-
-dt = 10./(24.*60.*60.)
+dt = 10./sid
 T = 1.
 
 for lp in lps:
@@ -66,8 +67,8 @@ for lp in lps:
 
     fig, axes = plt.subplots(5, 1)
 
-    axes[0].plot(res.times, res.prices[:, 0], label=res.market.currencies[0] + ' price')
-    axes[1].plot(res.times, res.prices[:, 1], label=res.market.currencies[1] + ' price')
+    axes[0].plot(res.times, res.market_swap_prices, label=res.market.currencies[1]+res.market.currencies[0])
+    axes[1].plot(res.times, res.cash, label='cash for ' + lp.name)
     axes[2].plot(res.times, res.inventories[:, 0], label=res.market.currencies[0] + ' inventory for ' + lp.name)
     axes[3].plot(res.times, res.inventories[:, 1], label=res.market.currencies[1] + ' inventory for ' + lp.name)
     axes[4].plot(res.times, res.pnl, label='PnL %s - PnL Hodl ' % lp.name)
