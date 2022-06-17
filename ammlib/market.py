@@ -3,7 +3,7 @@ import numpy as np
 
 class SimulationResults:
 
-    def __init__(self, times, market_swap_prices, inventories, cash, pnl, market):
+    def __init__(self, times, market_swap_prices, inventories, cash, pnl, volumes, market):
 
         self.times = times
         self.market_swap_prices = market_swap_prices
@@ -11,6 +11,7 @@ class SimulationResults:
         self.cash = cash
         self.pnl = pnl
         self.market = market
+        self.volumes = volumes
 
 
 class Market:
@@ -45,6 +46,7 @@ class Market:
         cash = np.zeros(nb_t)
         mtm_value = np.zeros(nb_t)
         mtm_value_hodl = np.zeros(nb_t)
+        volumes = np.zeros(nb_t)
 
         inventories[0] = lp.inventories
         cash[0] = lp.cash
@@ -78,6 +80,8 @@ class Market:
                     proba_01 = 1. - np.exp(- self.intensities_functions_01[size_index](proposed_swap_delta_01) * dt)
                     trade_01 = np.random.binomial(1, proba_01)
                     lp.update_01(trade_01)
+                    if trade_01:
+                        volumes[t+1] += size * current_swap_price_01
 
                 else:
 
@@ -86,6 +90,8 @@ class Market:
                     proba_10 = 1. - np.exp(- self.intensities_functions_10[size_index](proposed_swap_delta_10) * dt)
                     trade_10 = np.random.binomial(1, proba_10)
                     lp.update_10(trade_10)
+                    if trade_10:
+                        volumes[t+1] += size
 
             current_swap_price_01 = market_swap_prices_01[t + 1]
             current_swap_price_10 = 1. / current_swap_price_01
@@ -95,4 +101,4 @@ class Market:
             mtm_value[t + 1] = lp.mtm_value(current_swap_price_01)
             mtm_value_hodl[t + 1] = lp.initial_cash + lp.initial_inventories[0] + current_swap_price_01 * lp.initial_inventories[1]
 
-        return SimulationResults(times, market_swap_prices_01, inventories, cash, mtm_value - mtm_value_hodl, self)
+        return SimulationResults(times, market_swap_prices_01, inventories, cash, mtm_value - mtm_value_hodl, volumes, self)
