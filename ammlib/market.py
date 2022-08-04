@@ -74,6 +74,14 @@ class Market:
                 size = self.sizes[size_index]
 
                 if side == 0:
+                    arb_size = lp.arb_01(
+                        time=current_time,
+                        swap_price_01=market_swap_prices_01[t + 1],
+                        fixed_cost=0.01,
+                        relative_cost=0.075 / 100
+                    )
+                    if arb_size > 0:
+                        volumes[t+1] += arb_size
 
                     proposed_swap_price_01 = lp.proposed_swap_prices_01(current_time, size / current_swap_price_01)
                     proposed_swap_delta_01 = (proposed_swap_price_01 - current_swap_price_01) / current_swap_price_01
@@ -81,9 +89,17 @@ class Market:
                     trade_01 = np.random.binomial(1, proba_01)
                     lp.update_01(trade_01)
                     if trade_01:
-                        volumes[t+1] += size * current_swap_price_01
+                        volumes[t+1] += size
 
                 else:
+                    arb_size = lp.arb_10(
+                        time=current_time,
+                        swap_price_10=1 / market_swap_prices_01[t + 1],
+                        fixed_cost=0.01,
+                        relative_cost=0.075 / 100
+                    )
+                    if arb_size > 0:
+                        volumes[t+1] += arb_size
 
                     proposed_swap_price_10 = lp.proposed_swap_prices_10(current_time, size)
                     proposed_swap_delta_10 = (proposed_swap_price_10 - current_swap_price_10) / current_swap_price_10
@@ -96,7 +112,7 @@ class Market:
             current_swap_price_01 = market_swap_prices_01[t + 1]
             current_swap_price_10 = 1. / current_swap_price_01
 
-            inventories[t + 1, :] = lp.inventories
+            inventories[t + 1, :] = [v for v in lp.inventories]
             cash[t + 1] = lp.cash
             mtm_value[t + 1] = lp.mtm_value(current_swap_price_01)
             mtm_value_hodl[t + 1] = lp.initial_cash + lp.initial_inventories[0] + current_swap_price_01 * lp.initial_inventories[1]

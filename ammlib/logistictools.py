@@ -1,5 +1,5 @@
 import numpy as np
-from .logistic import Logistic
+from .demand_curve import Logistic
 
 
 class LogisticTools(Logistic):
@@ -8,10 +8,11 @@ class LogisticTools(Logistic):
         super().__init__(lambda_, a, b)
 
     def __Lambda_inverse(self, intensity):
-        return (np.log(self.lambda_ / np.minimum(np.maximum(intensity, 1e-10), self.lambda_ - 1e-10) - 1.) - self.a) / self.b
+        return (np.log(
+            self.lambda_ / np.minimum(np.maximum(intensity, 1e-10), self.lambda_ - 1e-10) - 1.) - self.a) / self.b
 
     def H(self, p):
-        p = np.minimum(np.maximum(p, -50. / self.b), 50. /self.b)
+        p = np.minimum(np.maximum(p, -50. / self.b), 50. / self.b)
         delta = p
         exp_term = np.exp(-self.a - self.b * delta)
         obj = self.b * delta - exp_term - (1. + self.b * p)
@@ -20,7 +21,7 @@ class LogisticTools(Logistic):
             exp_term = np.exp(-self.a - self.b * delta)
             obj = self.b * delta - exp_term - (1. + self.b * p)
         return self.lambda_ * (delta - p - 1. / self.b)
-    
+
     def H_prime(self, p):
         p = np.minimum(np.maximum(p, -50. / self.b), 50. / self.b)
         delta = p
