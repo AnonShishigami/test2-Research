@@ -268,13 +268,13 @@ def main():
     initial_inventories = 20. * np.array([1., 1 / init_swap_price_01])
     initial_cash = 0.
 
-    dt_sim = 10. / NUM_SEC_PER_DAY
+    dt_sim = 2. / NUM_SEC_PER_DAY
     t_sim = 1.
     simul_params = (dt_sim, t_sim)
 
     print(f"dt_sim={dt_sim}, t_sim={t_sim}")
 
-    nb_MCs = 10
+    nb_MCs = 100
     seed = 42
 
     q = Queue()
