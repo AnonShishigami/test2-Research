@@ -16,8 +16,11 @@ from ammlib import Logistic, MixedLogisticsExtended, Market,\
 
 warnings.filterwarnings("ignore")
 
-NUM_SEC_PER_DAY = 24 * 60 * 60
+NUM_TRADING_DAYS_PER_YEAR = 365.242199
+NUM_SECS_PER_DAY = 24 * 60 * 60
 BPS_PRECISION = 1e-4
+RFR = 0. / 100
+DT_ORACLE = 12 / NUM_SECS_PER_DAY
 
 
 def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q):
@@ -55,7 +58,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             delta = extra_params
             lp = LiquidityProviderCstDelta(
                 'LOcst%d' % delta, initial_inventories.copy(), initial_cash, market,
-                LaggedOracle(dt_sim), True, delta * BPS_PRECISION,
+                LaggedOracle(DT_ORACLE), True, delta * BPS_PRECISION,
             )
             return lp
     elif typo == 'LOcst_noarb':
@@ -63,7 +66,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             delta = extra_params
             lp = LiquidityProviderCstDelta(
                 'LOcst_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
-                LaggedOracle(dt_sim), False, delta * BPS_PRECISION,
+                LaggedOracle(DT_ORACLE), False, delta * BPS_PRECISION,
             )
             return lp
     elif typo == 'SOcst':
@@ -71,7 +74,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             delta = extra_params
             lp = LiquidityProviderCstDelta(
                 'SOcst%d' % delta, initial_inventories.copy(), initial_cash, market,
-                SparseOracle(dt_sim), True, delta * BPS_PRECISION,
+                SparseOracle(DT_ORACLE), True, delta * BPS_PRECISION,
             )
             return lp
     elif typo == 'SOcst_noarb':
@@ -79,7 +82,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             delta = extra_params
             lp = LiquidityProviderCstDelta(
                 'SOcst_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
-                SparseOracle(dt_sim), False, delta * BPS_PRECISION,
+                SparseOracle(DT_ORACLE), False, delta * BPS_PRECISION,
             )
             return lp
     elif typo == 'cfmmsqrt':
@@ -125,15 +128,15 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'swaapv1':
         def lp_init():
             name = extra_params['name']
-            delta_in_bps = extra_params["delta_in_bps"] * BPS_PRECISION
+            delta_in_bps = extra_params["delta_in_bps"]
             delta = delta_in_bps * BPS_PRECISION
             z = extra_params["z"]
-            horizon = extra_params["horizon_in_dt"] * dt_sim
+            horizon = extra_params["horizon_in_dt"] / NUM_SECS_PER_DAY
             lookback_calls = extra_params["lookback_calls"]
             lookback_step = extra_params["lookback_step"]
             lp = LiquidityProviderSwaapV1(
                 f'mmm_{name}', initial_inventories.copy(), initial_cash, market,
-                SparseOracle(dt_sim), True, delta,
+                SparseOracle(DT_ORACLE), True, delta,
                 z, horizon, lookback_calls, lookback_step,
             )
             return lp
@@ -143,7 +146,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             delta_in_bps = extra_params["delta_in_bps"] * BPS_PRECISION
             delta = delta_in_bps * BPS_PRECISION
             z = extra_params["z"]
-            horizon = extra_params["horizon_in_dt"] * dt_sim
+            horizon = extra_params["horizon_in_dt"] / NUM_SECS_PER_DAY
             lookback_calls = extra_params["lookback_calls"]
             lookback_step = extra_params["lookback_step"]
             lp = LiquidityProviderSwaapV1(
@@ -207,7 +210,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             gamma = extra_params
             lp = LiquidityProviderBestClosedForm(
                 'SObcf%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
-                SparseOracle(10./NUM_SEC_PER_DAY), True, gamma,
+                SparseOracle(DT_ORACLE), True, gamma,
             )
             return lp
     elif typo == 'SObcf_noarb':
@@ -215,7 +218,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             gamma = extra_params
             lp = LiquidityProviderBestClosedForm(
                 'PObcf_noarb%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
-                LaggedOracle(10./NUM_SEC_PER_DAY), False, gamma,
+                LaggedOracle(DT_ORACLE), False, gamma,
             )
             return lp
 
@@ -227,18 +230,28 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
 
     pnls = np.zeros(nb_MCs)
     volumes = np.zeros(nb_MCs)
+    arb_volumes = np.zeros(nb_MCs)
+    proposed_swap_price_diffs = []
     np.random.seed(seed)
 
     for j in range(nb_MCs):
         lp = lp_init()
         if j % 10 == 0:
             print(lp_name + ': ' + str(j))
-        res = market.simulate(dt_sim, t_sim, lp)
-        pnls[j] = res.pnl[-1]
-        volumes[j] = np.sum(res.volumes)
+        _res = market.simulate(dt_sim, t_sim, lp)
+        pnls[j] = _res.pnl[-1]
+        volumes[j] = np.sum(_res.volumes)
+        arb_volumes = np.sum(_res.arb_volumes)
+        proposed_swap_price_diffs += _res.proposed_swap_price_diffs.tolist()
 
-    res = (lp_name, np.mean(pnls), np.std(pnls), np.mean(volumes))
-    print(f"name: {res[0]}, mean={res[1]}, std={res[2]}, volume={res[3]}")
+    res = (lp_name, np.mean(pnls), np.std(pnls), np.mean(volumes), np.mean(arb_volumes))
+    apr = res[1]  * NUM_TRADING_DAYS_PER_YEAR / t_sim
+    apstd = res[2] * np.sqrt(NUM_TRADING_DAYS_PER_YEAR / t_sim)
+    s = f"name: {res[0]}, apr={apr * 100:.4f}% mean={res[1] * 100:.6f}%, var={res[2] * 100:.6f}%, retail={res[3]:.2f}, arb={res[4]:.2f}, sharpe={res[1] / res[2]:.2f}"
+    # s += '\nprice delta distribution:'
+    # for per in [0, 1, 10, 25, 50, 75, 90, 99, 100]:
+    #     s += f'\np{per}: {100 * np.percentile(proposed_swap_price_diffs, per)}%'
+    print(s)
 
     q.put(res)
     print('Done with ' + lp_name)
@@ -248,29 +261,34 @@ def main():
     currencies = ['BTC', 'ETH']
     initial_prices = [40000., 3000.]
     init_swap_price_01 = initial_prices[1] / initial_prices[0]
-    scale = 1. / 365.
-    mu = 0. * scale
-    sigma = 0.6 * np.sqrt(scale)
+    initial_inventories = 20. * np.array([1., 1 / init_swap_price_01])
+
+    scale = 1. / NUM_TRADING_DAYS_PER_YEAR
+    mu = 0 * scale
+    sigma = 0.8 * np.sqrt(scale)
     print(f"mu={mu}, sigma={sigma}")
+
+    dt_norm_factor = 1. / NUM_SECS_PER_DAY
+    dt_step = 2
+    dt_sim = dt_step * dt_norm_factor
+    assert dt_sim < DT_ORACLE  # TODO: remove this
+    assert (DT_ORACLE % dt_sim) < 1e-15  # TODO: remove this
+    t_sim = 1
+    simul_params = (dt_sim, t_sim)
 
     currencies_params = (currencies, init_swap_price_01, mu, sigma)
 
-    sizes = np.array([1. / 300.])
+    sizes = np.array([initial_inventories[0] * 2 / 1000.])
 
-    lambda_ = 700.
+    lambda_ = 750
     a = -1.8
-    b = 1300.
+    b = 1300
 
     print(f"sizes={sizes}, lambda_={lambda_}, a={a}, b={b}")
 
     log_params = lambda_, a, b
 
-    initial_inventories = 20. * np.array([1., 1 / init_swap_price_01])
     initial_cash = 0.
-
-    dt_sim = 2. / NUM_SEC_PER_DAY
-    t_sim = 1.
-    simul_params = (dt_sim, t_sim)
 
     print(f"dt_sim={dt_sim}, t_sim={t_sim}")
 
@@ -283,19 +301,21 @@ def main():
     means = []
     stdevs = []
     volumes = []
+    arb_volumes = []
     colors = []
 
     for typo in [
         "POcst_noarb",
         "swaapv1",
-        "swaapv1_noarb",
-        "conc_cfmmsqrt",
-        "cfmmsqrt",
+        # "swaapv1_noarb",
+        # "conc_cfmmsqrt",
+        # "cfmmsqrt",
+        # "cfmmsqrt_noarb",
         "cfmmsqrt_closearb",
         "PObcf_noarb",
-        "SObcf",
-        "POmyopic_noarb",
-        "curvev2_noarb",
+        # "SObcf",
+        # "POmyopic_noarb",
+        # "curvev2_noarb",
         "curvev2",
     ]:
 
@@ -317,11 +337,12 @@ def main():
             for job in jobs:
                 job.join()
             for delta in deltas:
-                name, mean, stdev, volume = q.get()
+                name, mean, stdev, volume, arb_volume = q.get()
                 names.append(name)
                 means.append(mean)
                 stdevs.append(stdev)
                 volumes.append(volume)
+                arb_volumes.append(arb_volume)
                 colors.append(color)
 
         elif "LOcst" in typo:
@@ -342,11 +363,12 @@ def main():
             for job in jobs:
                 job.join()
             for delta in deltas:
-                name, mean, stdev, volume = q.get()
+                name, mean, stdev, volume, arb_volume = q.get()
                 names.append(name)
                 means.append(mean)
                 stdevs.append(stdev)
                 volumes.append(volume)
+                arb_volumes.append(arb_volume)
                 colors.append(color)
 
         elif "SOcst" in typo:
@@ -367,15 +389,16 @@ def main():
             for job in jobs:
                 job.join()
             for delta in deltas:
-                name, mean, stdev, volume = q.get()
+                name, mean, stdev, volume, arb_volume = q.get()
                 names.append(name)
                 means.append(mean)
                 stdevs.append(stdev)
                 volumes.append(volume)
+                arb_volumes.append(arb_volume)
                 colors.append(color)
 
         elif typo == "POmyopic_noarb":
-            ext = MixedLogisticsExtended(Logistic(lambda_, a, b), Logistic(lambda_/2., 0., 10.*b))
+            ext = MixedLogisticsExtended(Logistic(lambda_, a, b), Logistic(lambda_ / 2., 0., 10. * b))
             mq = ext.delta0 * 1e4
             print("myopic quote:", mq)
             lp_params = (typo, initial_inventories, initial_cash, mq)
@@ -383,11 +406,12 @@ def main():
                           args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
             job.start()
             job.join()
-            name, mean, stdev, volume = q.get()
+            name, mean, stdev, volume, arb_volume = q.get()
             names.append(name)
             means.append(mean)
             stdevs.append(stdev)
             volumes.append(volume)
+            arb_volumes.append(arb_volume)
             colors.append("black")
 
         elif "curvev2" in typo:
@@ -406,11 +430,12 @@ def main():
                             args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
             job.start()
             job.join()
-            name, mean, stdev, volume = q.get()
+            name, mean, stdev, volume, arb_volume = q.get()
             names.append(name)
             means.append(mean)
             stdevs.append(stdev)
             volumes.append(volume)
+            arb_volumes.append(arb_volume)
             colors.append(color)
 
         elif "swaapv1" in typo:
@@ -421,18 +446,21 @@ def main():
             else:
                 raise ValueError("Unrecognized typo:", typo)
             param_values = [
-                # (0, 6, 0, 5, 4),  # no spread
-                # (2.5, 6, 1, 5, 4),
-                # (2.5, 6, 1.5, 5, 4),
+                (0, 6, 0, 1, 1),  # no spread, no fees
+                (15, 6, 0, 1, 1),  # no spread, only fees
+                (2.5, 6, 1, 5, 4),
+                (2.5, 4, 2.5, 5, 4),
+                (2.5, 3, 5, 5, 4),
                 (2.5, 6, 2.5, 5, 4),
                 (2.5, 6, 5, 5, 4),
-                (5, 6, 2.5, 5, 4),
-                # (5, 4, 2.5, 5, 4),
-                # (5, 4, 5, 5, 4),
-                # (10, 2, 2.5, 5, 4),
-                # (10, 2, 5, 5, 4),
-                # (20, 0.6, 2.5, 5, 4),
-                # (20, 1, 2.5, 5, 4),
+                (5, 6, 4, 5, 4),
+                (5, 4, 5, 5, 4),
+                (5, 3, 2.5, 5, 4),
+                (7.5, 3, 2.5, 5, 4),
+                (10, 2, 5, 5, 4),
+                (15, 2, 5, 5, 4),
+                (20, 0.6, 2.5, 5, 4),
+                (20, 1, 2.5, 5, 4),
             ]
             param_schema = [
                 "delta_in_bps",
@@ -456,11 +484,12 @@ def main():
             for job in jobs:
                 job.join()
             for param in params:
-                name, mean, stdev, volume = q.get()
+                name, mean, stdev, volume, arb_volume = q.get()
                 names.append(name)
                 means.append(mean)
                 stdevs.append(stdev)
                 volumes.append(volume)
+                arb_volumes.append(arb_volume)
                 colors.append(color)
 
         elif "cfmmsqrt" in typo:
@@ -476,7 +505,7 @@ def main():
                 color = "olive"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            deltas = [1, 5, 30, 100]
+            deltas = [5, 30, 100]
             jobs = []
             for delta in deltas:
                 lp_params = (typo, initial_inventories, initial_cash, delta)
@@ -487,11 +516,12 @@ def main():
             for job in jobs:
                 job.join()
             for delta in deltas:
-                name, mean, stdev, volume = q.get()
+                name, mean, stdev, volume, arb_volume = q.get()
                 names.append(name)
                 means.append(mean)
                 stdevs.append(stdev)
                 volumes.append(volume)
+                arb_volumes.append(arb_volume)
                 colors.append(color)
             
         elif "PObcf" in typo:
@@ -501,7 +531,7 @@ def main():
                 color = "pink"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            gammas = [0., 10, 100., 5000., 10000, 50000]
+            gammas = [0., 100., 10000, 100000]
             jobs = []
             for gamma in gammas:
                 lp_params = (typo, initial_inventories, initial_cash, gamma)
@@ -512,11 +542,12 @@ def main():
             for job in jobs:
                 job.join()
             for gamma in gammas:
-                name, mean, stdev, volume = q.get()
+                name, mean, stdev, volume, arb_volume = q.get()
                 names.append(name)
                 means.append(mean)
                 stdevs.append(stdev)
                 volumes.append(volume)
+                arb_volumes.append(arb_volume)
                 colors.append("green")
 
         elif "SObcf" in typo:
@@ -538,11 +569,12 @@ def main():
                 job.join()
 
             for gamma in gammas:
-                name, mean, stdev, volume = q.get()
+                name, mean, stdev, volume, arb_volume = q.get()
                 names.append(name)
                 means.append(mean)
                 stdevs.append(stdev)
                 volumes.append(volume)
+                arb_volumes.append(arb_volume)
                 colors.append(color)
                 
         end = time.time()

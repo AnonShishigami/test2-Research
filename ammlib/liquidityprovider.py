@@ -444,7 +444,7 @@ class LiquidityProviderSwaapV1(LiquidityProviderCFMMPowers):
             np.sum(
                 [
                     np.log(seq[i]["price"] / seq[i + 1]["price"]) ** 2 / (seq[i]["ts"] - seq[i + 1]["ts"])
-                    for i in range(0, n - 1)
+                    for i in range(n - 1)
                 ]
             )
             - log_diff ** 2 / ts_diff
