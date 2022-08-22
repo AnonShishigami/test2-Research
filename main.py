@@ -5,13 +5,17 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ammlib import Logistic, MixedLogisticsExtended, Market,\
-    BaseOracle, PerfectOracle, LaggedOracle, SparseOracle,\
-    LiquidityProviderCstDelta, LiquidityProviderCFMMSqrt, LiquidityProviderCFMMSqrtCloseArb,\
-    LiquidityProviderBestClosedForm,\
-    LiquidityProviderSwaapV1,\
-    LiquidityProviderCurveV2,\
-    LiquidityProviderConcentratedCFMMSqrt
+# tools
+from sandbox.demand_curve import Logistic
+from sandbox.control_tools import MixedLogisticsExtended
+from sandbox.market import Market
+from sandbox.oracle import BaseOracle, PerfectOracle, LaggedOracle, SparseOracle
+# strategies
+from sandbox.strategies.swaap_v1.strategy import LiquidityProviderSwaapV1
+from sandbox.strategies.cfmm_sqrt.strategy import LiquidityProviderCFMMSqrt
+from sandbox.strategies.cst_delta.strategy import LiquidityProviderCstDelta
+from sandbox.strategies.curve_v2.strategy import LiquidityProviderCurveV2
+from sandbox.strategies.best_closed_form.strategy import LiquidityProviderBestClosedForm
 
 
 warnings.filterwarnings("ignore")
@@ -101,30 +105,6 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
                 BaseOracle(), False, delta * BPS_PRECISION,
             )
             return lp
-    elif typo == 'cfmmsqrt_closearb':
-        def lp_init():
-            delta = extra_params
-            lp = LiquidityProviderCFMMSqrtCloseArb(
-                'cfmmsqrt_closearb%d' % delta, initial_inventories.copy(), initial_cash, market,
-                BaseOracle(), True, delta * BPS_PRECISION,
-            )
-            return lp
-    elif typo == 'conc_cfmmsqrt':
-        def lp_init():
-            delta = extra_params
-            lp = LiquidityProviderConcentratedCFMMSqrt(
-                'conc_cfmmsqrt%d' % delta, initial_inventories.copy(), initial_cash, market,
-                BaseOracle(), True, delta * BPS_PRECISION,
-            )
-            return lp
-    elif typo == 'conc_cfmmsqrt_noarb':
-        def lp_init():
-            delta = extra_params
-            lp = LiquidityProviderConcentratedCFMMSqrt(
-                'conc_cfmmsqrt_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
-                BaseOracle(), False, delta * BPS_PRECISION,
-            )
-            return lp
     elif typo == 'swaapv1':
         def lp_init():
             name = extra_params['name']
@@ -155,22 +135,28 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
                 z, horizon, lookback_calls, lookback_step,
             )
             return lp
-    elif typo == "curvev2":
+    elif typo == "curvev2_tricrypto":
         def lp_init():
             name = extra_params['name']
             initial_prices = extra_params["initial_prices"]
+            A = extra_params["A"]
+            gamma = extra_params["gamma"]
             lp = LiquidityProviderCurveV2(
-                f'curve_v2_{name}', initial_inventories.copy(), initial_cash, market,
-                PerfectOracle(), True, initial_prices
+                f'{name}', initial_inventories.copy(), initial_cash, market,
+                PerfectOracle(), True, initial_prices, dt_sim, 
+                A=A, gamma=gamma
             )
             return lp
-    elif typo == "curvev2_noarb":
+    elif typo == "curvev2_tricrypto_noarb":
         def lp_init():
             name = extra_params['name']
             initial_prices = extra_params["initial_prices"]
+            A = extra_params["A"]
+            gamma = extra_params["gamma"]
             lp = LiquidityProviderCurveV2(
-                f'curve_v2_{name}_noarb', initial_inventories.copy(), initial_cash, market,
-                PerfectOracle(), False, initial_prices
+                f'{name}_noarb', initial_inventories.copy(), initial_cash, market,
+                PerfectOracle(), False, initial_prices, dt_sim, 
+                A=A, gamma=gamma
             )
             return lp
     elif typo == 'POmyopic':
@@ -261,7 +247,7 @@ def main():
     currencies = ['BTC', 'ETH']
     initial_prices = [40000., 3000.]
     init_swap_price_01 = initial_prices[1] / initial_prices[0]
-    initial_inventories = 20. * np.array([1., 1 / init_swap_price_01])
+    initial_inventories = 400. * np.array([1., 1 / init_swap_price_01])
 
     scale = 1. / NUM_TRADING_DAYS_PER_YEAR
     mu = 0 * scale
@@ -271,7 +257,7 @@ def main():
     dt_norm_factor = 1. / NUM_SECS_PER_DAY
     dt_step = 2
     dt_sim = dt_step * dt_norm_factor
-    assert dt_sim < DT_ORACLE  # TODO: remove this
+    assert dt_sim <= DT_ORACLE  # TODO: remove this
     assert (DT_ORACLE % dt_sim) < 1e-15  # TODO: remove this
     t_sim = 1
     simul_params = (dt_sim, t_sim)
@@ -307,16 +293,14 @@ def main():
     for typo in [
         "POcst_noarb",
         "swaapv1",
-        # "swaapv1_noarb",
-        # "conc_cfmmsqrt",
-        # "cfmmsqrt",
-        # "cfmmsqrt_noarb",
-        "cfmmsqrt_closearb",
+        "swaapv1_noarb",
+        "cfmmsqrt",
+        "cfmmsqrt_noarb",
         "PObcf_noarb",
-        # "SObcf",
-        # "POmyopic_noarb",
-        # "curvev2_noarb",
-        "curvev2",
+        "SObcf",
+        "POmyopic_noarb",
+        "curvev2_tricrypto_noarb",
+        "curvev2_tricrypto",
     ]:
 
         start = time.time()
@@ -414,29 +398,49 @@ def main():
             arb_volumes.append(arb_volume)
             colors.append("black")
 
-        elif "curvev2" in typo:
-            if typo == "curvev2":
+        elif "curvev2_tricrypto" in typo:
+            if typo == "curvev2_tricrypto":
                 color = "lightcoral"
-            elif typo == "curvev2_noarb":
+            elif typo == "curvev2_tricrypto_noarb":
                 color = "crimson"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            param = {
-                "name": "tricrypto",
-                "initial_prices": initial_prices
-            }
+            param_values = [
+                (5400000, 20000000000000, "polygon"),
+                (1707629, 11809167828997, "ethereum"),
+            ]
+            param_schema = [
+                "A",
+                "gamma",
+                "chain"
+            ]
+            jobs = []
+            params = [
+                dict((k, v) for k, v in zip(param_schema, param))
+                for param in param_values
+            ]
+            for idx, param in enumerate(params):
+                param["name"] = f'tricrypto_{param["chain"]}'
+                param["initial_prices"] = initial_prices
+                lp_params = (typo, initial_inventories, initial_cash, param)
+                job = Process(target=monte_carlo,
+                              args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
+                job.start()
+                jobs.append(job)
+
             lp_params = (typo, initial_inventories, initial_cash, param)
             job = Process(target=monte_carlo,
                             args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
-            job.start()
-            job.join()
-            name, mean, stdev, volume, arb_volume = q.get()
-            names.append(name)
-            means.append(mean)
-            stdevs.append(stdev)
-            volumes.append(volume)
-            arb_volumes.append(arb_volume)
-            colors.append(color)
+            for job in jobs:
+                job.join()
+            for param in params:
+                name, mean, stdev, volume, arb_volume = q.get()
+                names.append(name)
+                means.append(mean)
+                stdevs.append(stdev)
+                volumes.append(volume)
+                arb_volumes.append(arb_volume)
+                colors.append(color)
 
         elif "swaapv1" in typo:
             if typo == "swaapv1":
@@ -493,15 +497,9 @@ def main():
                 colors.append(color)
 
         elif "cfmmsqrt" in typo:
-            if typo == "cfmmsqrt_closearb":
-                color = "red"
-            elif typo == "cfmmsqrt":
+            if typo == "cfmmsqrt":
                 color = "gray"
             elif typo == "cfmmsqrt_noarb":
-                color = "olive"
-            elif typo == "conc_cfmmsqrt":
-                color = "gray"
-            elif typo == "conc_cfmmsqrt_noarb":
                 color = "olive"
             else:
                 raise ValueError("Unrecognized typo:", typo)

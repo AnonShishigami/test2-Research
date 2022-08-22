@@ -5,7 +5,7 @@
 # Unless otherwise agreed on, only contracts owned by Curve DAO or
 # Swiss Stake GmbH are allowed to call this contract.
 
-from .vyper_utils import call_by_value
+from sandbox.strategies.curve_v2.vyper_utils import call_by_value
 
 
 N_COINS: int = 3  # <- change
@@ -301,40 +301,32 @@ def sqrt_int(x: int) -> int:
 
 
 if __name__ == "__main__":
-
-    factor = 1000
-
-    GT = 13909500825447947762 / factor
+    GT = 670293730884516
 
     PRECISION = 10**18
 
     precisions = [
         1,
-        1,
+        10 ** 10,
         1,
     ]
-
-    D = 36563412680673942970083170
-    i = 1
-    j = 2
-
-    dx = 1*10**18 / factor
 
     A_gamma = [
         5400000,
         20000000000000,
     ]
 
-    price_scale = [
-        22239416879670065382803,
-        1593854743135437389490,
-    ]
+    i = 0
+    j = 2
+    dx = PRECISION
 
-    xp = [
-        12441069707852459963468772,
-        54255933122*10**10,
-        7565098356774253252646,
-    ]
+    D = 34043930643673968447856573
+    price_scale = [20077744094987371576411, 1484536006521280405267]
+    xp = [11464605823397982810598800, 56420913641, 7579069906017834891729]
+    # xp[0] - 121864366071412405553
+    # xp[1] -= 599732
+    # xp[2] -= 80562608408461817
+
     xp[i] += dx
 
     for k in range(1, N_COINS):

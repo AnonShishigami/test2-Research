@@ -1,5 +1,5 @@
 import numpy as np
-from ammlib import Logistic, MixedLogistics, LogisticExtended, MixedLogisticsExtended, Market,\
+from sandbox import Logistic, MixedLogistics, LogisticExtended, MixedLogisticsExtended, Market,\
                    BaseOracle, PerfectOracle, LaggedOracle,\
                    LiquidityProviderCstDelta, LiquidityProviderCFMMPowers, LiquidityProviderCFMMSqrt, LiquidityProviderBestClosedForm
 import matplotlib.pyplot as plt
