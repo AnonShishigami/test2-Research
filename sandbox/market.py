@@ -97,8 +97,6 @@ class Market:
             # spatial arbitrage trading
             for index in [0, 1]:
                 side = index % 2
-                size_index = index // 2
-                size = self.sizes[size_index]
                 if side == 0:
                     arb_size = lp.arb_01(
                         time=current_time,
@@ -117,15 +115,13 @@ class Market:
                     )
                     if arb_size > 0:
                         arb_volumes[t+1] += arb_size
-            
+
             current_swap_price_01 = market_swap_prices_01[t + 1]
             current_swap_price_10 = 1. / current_swap_price_01
 
             # temporal arbitrage trading
             for index in [0, 1]:
                 side = index % 2
-                size_index = index // 2
-                size = self.sizes[size_index]
                 if side == 0:
                     arb_size = lp.arb_01(
                         time=current_time,
