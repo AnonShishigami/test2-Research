@@ -1,7 +1,7 @@
 import numpy as np
 from sandbox import Logistic, MixedLogistics, LogisticExtended, MixedLogisticsExtended, Market,\
                    BaseOracle, PerfectOracle, LaggedOracle,\
-                   LiquidityProviderCstDelta, LiquidityProviderCFMMPowers, LiquidityProviderCFMMSqrt, LiquidityProviderBestClosedForm
+                   CstDelta, CFMMPowers, CFMMSqrt, BestClosedForm
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib as mpl
@@ -37,23 +37,23 @@ sid = 24.*60.*60.
 
 deltas = np.arange(1, 10, 1)
 for delta in deltas:
-    #lps.append(LiquidityProviderCstDelta('PO+%dbp' % delta, initial_inventories.copy(),
+    #lps.append(CstDelta('PO+%dbp' % delta, initial_inventories.copy(),
                                          #initial_cash, market, PerfectOracle(), delta * 1e-4))
-    #lps.append(LiquidityProviderCstDelta('Lagged10+%dbp' % delta, initial_inventories.copy(),
+    #lps.append(CstDelta('Lagged10+%dbp' % delta, initial_inventories.copy(),
                                          #initial_cash, market, LaggedOracle(10./sid), delta * 1e-4))
-    lps.append(LiquidityProviderCFMMSqrt('CFMMSqrt+%dbp' % delta, initial_inventories.copy(), initial_cash, market,
+    lps.append(CFMMSqrt('CFMMSqrt+%dbp' % delta, initial_inventories.copy(), initial_cash, market,
                                         BaseOracle(), delta * 1e-4))
-    lps.append(LiquidityProviderCFMMPowers('CFMMPowers0.3/0.7+%dbp' % delta, initial_inventories.copy(), initial_cash, market,
+    lps.append(CFMMPowers('CFMMPowers0.3/0.7+%dbp' % delta, initial_inventories.copy(), initial_cash, market,
                                         BaseOracle(), np.array([0.3, 0.7]), delta * 1e-4))
 
 ext = MixedLogisticsExtended(Logistic(lambda_, a, b), Logistic(lambda_/2., 0., 10.*b))
 mq = ext.delta0 * 1e4
-lps.append(LiquidityProviderCstDelta('PO+myopic', initial_inventories.copy(), initial_cash, market, PerfectOracle(), mq))
+lps.append(CstDelta('PO+myopic', initial_inventories.copy(), initial_cash, market, PerfectOracle(), mq))
 
 gammas = [0., 1., 5., 10., 50., 100., 500.]
 
 for gamma in gammas:
-    lp_BCF = LiquidityProviderBestClosedForm('PO+BCF%.0e' % gamma, initial_inventories.copy(), initial_cash,
+    lp_BCF = BestClosedForm('PO+BCF%.0e' % gamma, initial_inventories.copy(), initial_cash,
                                              market, PerfectOracle(), gamma)
     lps.append(lp_BCF)
 

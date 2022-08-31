@@ -3,7 +3,7 @@ import numpy as np
 from sandbox.strategies.base.strategy import BaseLiquidityProvider
 
 
-class LiquidityProviderCstDelta(BaseLiquidityProvider):
+class CstDelta(BaseLiquidityProvider):
 
     def __init__(self, name, initial_inventories, initial_cash, market, oracle, support_arb, delta):
         super().__init__(name, initial_inventories, initial_cash, market, oracle, support_arb)

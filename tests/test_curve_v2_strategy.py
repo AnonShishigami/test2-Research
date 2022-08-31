@@ -4,7 +4,7 @@ import numpy as np
 
 from tests.strategy_test_template import StrategyTestTemplate
 from tests.strategy_test_oracle import StrategyTestOracle
-from sandbox.strategies.curve_v2.strategy import LiquidityProviderCurveV2
+from sandbox.strategies.curve_v2.strategy import CurveV2
 
 
 class TestCurveV2(StrategyTestTemplate, unittest.TestCase):
@@ -35,7 +35,7 @@ class TestCurveV2(StrategyTestTemplate, unittest.TestCase):
         not_adjusted = True
         precisions = [10 ** 12, 10 ** 10, 1]
                 
-        strategy = LiquidityProviderCurveV2(
+        strategy = CurveV2(
             name="curve_v2", 
             initial_inventories=balances,  # will be overwritten right below
             A=A, gamma=gamma,

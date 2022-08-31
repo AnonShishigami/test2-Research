@@ -11,11 +11,11 @@ from sandbox.control_tools import MixedLogisticsExtended
 from sandbox.market import Market
 from sandbox.oracle import BaseOracle, PerfectOracle, LaggedOracle, SparseOracle
 # strategies
-from sandbox.strategies.swaap_v1.strategy import LiquidityProviderSwaapV1
-from sandbox.strategies.cfmm_sqrt.strategy import LiquidityProviderCFMMSqrt
-from sandbox.strategies.cst_delta.strategy import LiquidityProviderCstDelta
-from sandbox.strategies.curve_v2.strategy import LiquidityProviderCurveV2
-from sandbox.strategies.best_closed_form.strategy import LiquidityProviderBestClosedForm
+from sandbox.strategies.swaap_v1.strategy import SwaapV1
+from sandbox.strategies.cfmm_sqrt.strategy import CFMMSqrt
+from sandbox.strategies.cst_delta.strategy import CstDelta
+from sandbox.strategies.curve_v2.strategy import CurveV2
+from sandbox.strategies.best_closed_form.strategy import BestClosedForm
 
 
 warnings.filterwarnings("ignore")
@@ -44,7 +44,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     if typo == 'POcst':
         def lp_init():
             delta = extra_params
-            lp = LiquidityProviderCstDelta(
+            lp = CstDelta(
                 'POcst%d' % delta, initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), True, delta * BPS_PRECISION,
             )
@@ -52,7 +52,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'POcst_noarb':
         def lp_init():
             delta = extra_params
-            lp = LiquidityProviderCstDelta(
+            lp = CstDelta(
                 'POcst_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), False, delta * BPS_PRECISION,
             )
@@ -60,7 +60,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'LOcst':
         def lp_init():
             delta = extra_params
-            lp = LiquidityProviderCstDelta(
+            lp = CstDelta(
                 'LOcst%d' % delta, initial_inventories.copy(), initial_cash, market,
                 LaggedOracle(DT_ORACLE), True, delta * BPS_PRECISION,
             )
@@ -68,7 +68,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'LOcst_noarb':
         def lp_init():
             delta = extra_params
-            lp = LiquidityProviderCstDelta(
+            lp = CstDelta(
                 'LOcst_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
                 LaggedOracle(DT_ORACLE), False, delta * BPS_PRECISION,
             )
@@ -76,7 +76,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'SOcst':
         def lp_init():
             delta = extra_params
-            lp = LiquidityProviderCstDelta(
+            lp = CstDelta(
                 'SOcst%d' % delta, initial_inventories.copy(), initial_cash, market,
                 SparseOracle(DT_ORACLE), True, delta * BPS_PRECISION,
             )
@@ -84,7 +84,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'SOcst_noarb':
         def lp_init():
             delta = extra_params
-            lp = LiquidityProviderCstDelta(
+            lp = CstDelta(
                 'SOcst_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
                 SparseOracle(DT_ORACLE), False, delta * BPS_PRECISION,
             )
@@ -92,7 +92,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'cfmmsqrt':
         def lp_init():
             delta = extra_params
-            lp = LiquidityProviderCFMMSqrt(
+            lp = CFMMSqrt(
                 'cfmmsqrt%d' % delta, initial_inventories.copy(), initial_cash, market,
                 BaseOracle(), True, delta * BPS_PRECISION,
             )
@@ -100,7 +100,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'cfmmsqrt_noarb':
         def lp_init():
             delta = extra_params
-            lp = LiquidityProviderCFMMSqrt(
+            lp = CFMMSqrt(
                 'cfmmsqrt_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
                 BaseOracle(), False, delta * BPS_PRECISION,
             )
@@ -114,7 +114,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             horizon = extra_params["horizon_in_dt"] / NUM_SECS_PER_DAY
             lookback_calls = extra_params["lookback_calls"]
             lookback_step = extra_params["lookback_step"]
-            lp = LiquidityProviderSwaapV1(
+            lp = SwaapV1(
                 f'mmm_{name}', initial_inventories.copy(), initial_cash, market,
                 SparseOracle(DT_ORACLE), True, delta,
                 z, horizon, lookback_calls, lookback_step,
@@ -129,7 +129,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             horizon = extra_params["horizon_in_dt"] / NUM_SECS_PER_DAY
             lookback_calls = extra_params["lookback_calls"]
             lookback_step = extra_params["lookback_step"]
-            lp = LiquidityProviderSwaapV1(
+            lp = SwaapV1(
                 f'mmm_{name}_noarb', initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), False, delta,
                 z, horizon, lookback_calls, lookback_step,
@@ -141,7 +141,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             initial_prices = extra_params["initial_prices"]
             A = extra_params["A"]
             gamma = extra_params["gamma"]
-            lp = LiquidityProviderCurveV2(
+            lp = CurveV2(
                 f'{name}', initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), True, initial_prices, dt_sim, 
                 A=A, gamma=gamma
@@ -153,7 +153,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             initial_prices = extra_params["initial_prices"]
             A = extra_params["A"]
             gamma = extra_params["gamma"]
-            lp = LiquidityProviderCurveV2(
+            lp = CurveV2(
                 f'{name}_noarb', initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), False, initial_prices, dt_sim, 
                 A=A, gamma=gamma
@@ -162,7 +162,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'POmyopic':
         def lp_init():
             delta = extra_params
-            lp = LiquidityProviderCstDelta(
+            lp = CstDelta(
                 'myopic', initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), True, delta * BPS_PRECISION,
             )
@@ -170,7 +170,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'POmyopic_noarb':
         def lp_init():
             delta = extra_params
-            lp = LiquidityProviderCstDelta(
+            lp = CstDelta(
                 'myopic', initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), False, delta * BPS_PRECISION,
             )
@@ -178,7 +178,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'PObcf':
         def lp_init():
             gamma = extra_params
-            lp = LiquidityProviderBestClosedForm(
+            lp = BestClosedForm(
                 'PObcf%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), True, gamma,
             )
@@ -186,7 +186,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'PObcf_noarb':
         def lp_init():
             gamma = extra_params
-            lp = LiquidityProviderBestClosedForm(
+            lp = BestClosedForm(
                 'PObcf_noarb%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), False, gamma,
             )
@@ -194,7 +194,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'SObcf':
         def lp_init():
             gamma = extra_params
-            lp = LiquidityProviderBestClosedForm(
+            lp = BestClosedForm(
                 'SObcf%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
                 SparseOracle(DT_ORACLE), True, gamma,
             )
@@ -202,7 +202,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'SObcf_noarb':
         def lp_init():
             gamma = extra_params
-            lp = LiquidityProviderBestClosedForm(
+            lp = BestClosedForm(
                 'PObcf_noarb%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
                 LaggedOracle(DT_ORACLE), False, gamma,
             )

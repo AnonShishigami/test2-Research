@@ -4,7 +4,7 @@ from sandbox.logistictools import LogisticTools
 from sandbox.strategies.base.strategy import BaseLiquidityProvider
 
 
-class LiquidityProviderBestClosedForm(BaseLiquidityProvider):
+class BestClosedForm(BaseLiquidityProvider):
 
     def __init__(self, name, initial_inventories, initial_cash, market, oracle, support_arb, gamma):
 

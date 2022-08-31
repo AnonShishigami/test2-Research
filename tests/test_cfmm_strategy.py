@@ -4,7 +4,7 @@ import numpy as np
 
 from tests.strategy_test_template import StrategyTestTemplate
 from tests.strategy_test_oracle import StrategyTestOracle
-from sandbox.strategies.cfmm_sqrt.strategy import LiquidityProviderCFMMSqrt
+from sandbox.strategies.cfmm_sqrt.strategy import CFMMSqrt
 
 
 class TestCFMMSqrt(StrategyTestTemplate, unittest.TestCase):
@@ -16,7 +16,7 @@ class TestCFMMSqrt(StrategyTestTemplate, unittest.TestCase):
         reserve1 = state["reserve1"]
         # hyper-parameters
         fee_tier = 0.3 / 100
-        strategy = LiquidityProviderCFMMSqrt(
+        strategy = CFMMSqrt(
             name="uni_v2", 
             initial_inventories=[reserve0, reserve1],
             initial_cash=0, market=None, oracle=StrategyTestOracle(), support_arb=False, 

@@ -3,7 +3,7 @@ import numpy as np
 from sandbox.strategies.base.strategy import BaseLiquidityProvider
 
 
-class LiquidityProviderCFMMPowers(BaseLiquidityProvider):
+class CFMMPowers(BaseLiquidityProvider):
 
     def __init__(self, name, initial_inventories, initial_cash, market, oracle, support_arb, weights, delta):
         super().__init__(name, initial_inventories, initial_cash, market, oracle, support_arb)

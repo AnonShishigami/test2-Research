@@ -1,9 +1,9 @@
 import numpy as np
 
-from sandbox.strategies.cfmm_powers.strategy import LiquidityProviderCFMMPowers
+from sandbox.strategies.cfmm_powers.strategy import CFMMPowers
 
 
-class LiquidityProviderCFMMSqrt(LiquidityProviderCFMMPowers):
+class CFMMSqrt(CFMMPowers):
 
     def __init__(self, name, initial_inventories, initial_cash, market, oracle, support_arb, delta):
         super().__init__(name, initial_inventories, initial_cash, market, oracle, support_arb, np.array([0.5, 0.5]), delta)

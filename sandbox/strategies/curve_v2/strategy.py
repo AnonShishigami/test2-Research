@@ -6,7 +6,7 @@ from sandbox.strategies.base.strategy import BaseLiquidityProvider
 from sandbox.strategies.curve_v2 import curve_v2_swap
 
 
-class LiquidityProviderCurveV2(BaseLiquidityProvider):
+class CurveV2(BaseLiquidityProvider):
 
     def __init__(
         self, name, initial_inventories, initial_cash, market, oracle, support_arb, initial_prices, dt_sim,

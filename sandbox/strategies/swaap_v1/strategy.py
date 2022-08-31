@@ -1,9 +1,9 @@
 import numpy as np
 
-from sandbox.strategies.cfmm_powers.strategy import LiquidityProviderCFMMPowers
+from sandbox.strategies.cfmm_powers.strategy import CFMMPowers
 
 
-class LiquidityProviderSwaapV1(LiquidityProviderCFMMPowers):
+class SwaapV1(CFMMPowers):
 
     def __init__(
         self, name, initial_inventories, initial_cash, market, oracle, support_arb, delta,
