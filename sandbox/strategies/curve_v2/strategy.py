@@ -41,7 +41,7 @@ class CurveV2(BaseLiquidityProvider):
         )
         self.dt_sim = dt_sim
 
-        self._tmp_sc_state = None
+        self.smart_contract_state = None
 
     def process_exchange(self, sell_idx, buy_idx, sell_amount):
         self.smart_contract_state = self._get_sc_state()
@@ -115,7 +115,8 @@ class CurveV2(BaseLiquidityProvider):
                 self._restore_sc_state(self.smart_contract_state)
                 return False
         else:
-            self._restore_sc_state(self.smart_contract_state)
+            if self.smart_contract_state:
+                self._restore_sc_state(self.smart_contract_state)
         return True
 
     def update_10(self, trade_10):
@@ -130,7 +131,8 @@ class CurveV2(BaseLiquidityProvider):
                 self._restore_sc_state(self.smart_contract_state)
                 return False
         else:
-            self._restore_sc_state(self.smart_contract_state)
+            if self.smart_contract_state:
+                self._restore_sc_state(self.smart_contract_state)
         return True
 
     def arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=10000):
