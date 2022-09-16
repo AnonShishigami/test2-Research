@@ -1,4 +1,5 @@
 import copy
+from termios import VSTART
 
 import numpy as np
 
@@ -10,34 +11,40 @@ class CurveV2(BaseLiquidityProvider):
 
     def __init__(
         self, name, initial_inventories, initial_cash, market, oracle, support_arb, initial_prices, dt_sim,
-        A=5400000, gamma=20000000000000, precisions=(1, 1, 1), input_precision_factor=curve_v2_swap.PRECISION
+        A, gamma, 
+        mid_fee, out_fee, allowed_extra_profit,
+        fee_gamma, adjustment_step,
+        admin_fee, ma_half_time,
+        precisions=(1, 1, 1), input_precision_factor=curve_v2_swap.PRECISION
     ): 
         
         BaseLiquidityProvider.__init__(self, name, initial_inventories, initial_cash, market, oracle, support_arb)
 
         self.input_precision_factor = input_precision_factor
-        self.initial_prices = [p * self.input_precision_factor for p in [1] + initial_prices]
+        self.initial_prices = [p * self.input_precision_factor for p in initial_prices]
 
-        self.asset_0_index = 1
-        self.asset_1_index = 2
+        self.asset_0_index = 0
+        self.asset_1_index = 1
 
         self.smart_contract = curve_v2_swap.Swap(
             A=A,
             gamma=gamma,
-            mid_fee=5000000,
-            out_fee=30000000,
-            allowed_extra_profit=200000000000,
-            fee_gamma=500000000000000,
-            adjustment_step=500000000000000,
-            admin_fee=5000000000,
-            ma_half_time=600,
-            initial_prices=self.initial_prices[1:],
-            initial_balances=[
-                initial_inventories[0] * self.initial_prices[1], 
+            mid_fee=mid_fee,
+            out_fee=out_fee,
+            allowed_extra_profit=allowed_extra_profit,
+            fee_gamma=fee_gamma,
+            adjustment_step=adjustment_step,
+            admin_fee=admin_fee,
+            ma_half_time=ma_half_time,
+            initial_price=int(self.initial_prices[1] / self.initial_prices[0] * curve_v2_swap.PRECISION),
+            precisions=precisions
+        )
+        self.smart_contract.add_liquidity(
+            amounts=[
                 initial_inventories[0] * self.input_precision_factor, 
                 initial_inventories[1] * self.input_precision_factor
             ],
-            precisions=precisions
+            min_mint_amount=0,
         )
         self.dt_sim = dt_sim
 
@@ -60,21 +67,29 @@ class CurveV2(BaseLiquidityProvider):
             return 0, np.inf
 
     def pricing_function_01(self, nb_coins_1, swap_price_01):
-        unscaled_amount = nb_coins_1 * self.initial_prices[self.asset_1_index] / self.initial_prices[self.asset_0_index]
+        if self.initial_prices[self.asset_0_index] == 1:
+            unscaled_amount = nb_coins_1
+        else:
+            unscaled_amount = nb_coins_1 * self.initial_prices[self.asset_1_index] / self.initial_prices[self.asset_0_index]
         self.last_sell_amount_0 = int(unscaled_amount * self.input_precision_factor)
         dy, p = self.simulate_exchange(
             self.asset_0_index, self.asset_1_index, self.last_sell_amount_0,
         )
         self.last_requested_nb_coins_1 = dy / curve_v2_swap.PRECISION
+        self.last_price = swap_price_01
         return p, 0
 
     def pricing_function_10(self, nb_coins_0, swap_price_10):
-        unscaled_amount = nb_coins_0 * self.initial_prices[self.asset_0_index] / self.initial_prices[self.asset_1_index]
+        if self.initial_prices[self.asset_0_index] == 1:
+            unscaled_amount = nb_coins_0
+        else:
+            unscaled_amount = nb_coins_0 * self.initial_prices[self.asset_0_index] / self.initial_prices[self.asset_1_index]
         self.last_sell_amount_1 = int(unscaled_amount * self.input_precision_factor)
         dy, p = self.simulate_exchange(
             self.asset_1_index, self.asset_0_index, self.last_sell_amount_1,
         )
         self.last_requested_nb_coins_0 = dy / curve_v2_swap.PRECISION
+        self.last_price = 1 / swap_price_10
         return p, 0
 
     def _get_sc_state(self):
@@ -84,15 +99,12 @@ class CurveV2(BaseLiquidityProvider):
         self.smart_contract.__dict__ = copy.deepcopy(state)
 
     def get_state(self):
-        return {
-            "inventories": [float(v) for v in self.inventories],
-            "cash": float(self.cash),
+        return super().get_state() | {
             "sc": self._get_sc_state(),
         }
 
     def restore_state(self, state):
-        self.inventories = state["inventories"]
-        self.cash = state["cash"]
+        super().restore_state(state)
         self._restore_sc_state(state["sc"])
 
     def proposed_swap_prices_01(self, time, nb_coins_1):

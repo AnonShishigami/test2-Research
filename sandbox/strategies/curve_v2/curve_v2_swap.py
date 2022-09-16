@@ -8,33 +8,12 @@ import numpy as np
 
 from sandbox.strategies.curve_v2.vyper_utils import shift, bitwise_or, bitwise_and, empty, call_by_value, shallow_array_copy
 import sandbox.strategies.curve_v2.curve_v2_math as curve_v2_math
-
-
-N_COINS: int = 3  # <- change
-PRECISION: int = 10 ** 18  # The precision to convert to
-A_MULTIPLIER: int = 10000
-
-# These addresses are replaced by the deployer
-
-KILL_DEADLINE_DT: int = 2 * 30 * 86400
-ADMIN_ACTIONS_DELAY: int = 3 * 86400
-MIN_RAMP_TIME: int = 86400
-
-MAX_ADMIN_FEE: int = 10 * 10 ** 9
-MIN_FEE: int = 5 * 10 ** 5  # 0.5 bps
-MAX_FEE: int = 10 * 10 ** 9
-MIN_A: int = N_COINS**N_COINS * A_MULTIPLIER // 100
-MAX_A: int = 1000 * A_MULTIPLIER * N_COINS**N_COINS
-MAX_A_CHANGE: int = 10
-MIN_GAMMA: int = 10**10
-MAX_GAMMA: int = 5 * 10**16
-NOISE_FEE: int = 10**5  # 0.1 bps
-
-PRICE_SIZE: int = 256 // (N_COINS-1)
-PRICE_MASK: int = 2**PRICE_SIZE - 1
-
-
-INF_COINS: int = 15
+from sandbox.strategies.curve_v2.curve_v2_config import (
+    N_COINS,
+    PRECISION,
+    KILL_DEADLINE_DT,
+    NOISE_FEE
+)
 
 
 class Block:
@@ -67,8 +46,7 @@ class Swap:
         adjustment_step: int,
         admin_fee: int,
         ma_half_time: int,
-        initial_prices: list[int],  # [N_COINS - 1]
-        initial_balances: list[int],
+        initial_price: int, 
         
         # This must be changed for different N_COINS
         # For example:
@@ -88,10 +66,6 @@ class Swap:
 
         self.block = Block()
 
-        ### added by me
-        self._balances = shallow_array_copy(initial_balances)
-        ###
-
         self.mid_fee = mid_fee
         self.out_fee = out_fee
         self.allowed_extra_profit = allowed_extra_profit
@@ -100,17 +74,9 @@ class Swap:
         self.admin_fee = admin_fee
         self.precisions = precisions
 
-        # Packing prices
-        packed_prices: int = 0
-        for k in range(N_COINS-1):
-            packed_prices = shift(packed_prices, PRICE_SIZE)
-            p: int = initial_prices[N_COINS-2 - k]  # // PRICE_PRECISION_MUL
-            assert p < PRICE_MASK
-            packed_prices = bitwise_or(p, packed_prices)
-
-        self.price_scale_packed = packed_prices
-        self.price_oracle_packed = packed_prices
-        self.last_prices_packed = packed_prices
+        self.price_scale = initial_price
+        self.price_oracle = initial_price
+        self.last_prices = initial_price
         self.last_prices_timestamp = self.block.timestamp
         self.ma_half_time = ma_half_time
 
@@ -120,34 +86,14 @@ class Swap:
 
         # hardcoded
         self.future_A_gamma_time = 0
-        self.D = len(initial_balances) * np.prod([b * p // PRECISION for b, p in zip (initial_balances, [PRECISION] + initial_prices)]) ** (1 / len(initial_balances))
-        self.total_supply = 100 * PRECISION
+        self.D = 0
+        self.total_supply = 0
         self.xcp_profit = 0
         self.virtual_price = 0
         self.not_adjusted = False
         self.is_killed = False
+        self.balances = [0, 0]
     
-    @staticmethod
-    def _packed_view(k: int, p: int) -> int:
-        assert k < N_COINS-1
-        r = bitwise_and(
-            shift(p, -PRICE_SIZE * k),
-            PRICE_MASK
-        )
-        return bitwise_and(
-            shift(p, -PRICE_SIZE * k),
-            PRICE_MASK
-        )  # * PRICE_PRECISION_MUL
-
-    def price_oracle(self, k: int) -> int:
-        return self._packed_view(k, self.price_oracle_packed)
-
-    def price_scale(self, k: int) -> int:
-        return self._packed_view(k, self.price_scale_packed)
-
-    def last_prices(self, k: int) -> int:
-        return self._packed_view(k, self.last_prices_packed)
-
     def _A_gamma(self) -> list[int]:
         t1: int = self.future_A_gamma_time
 
@@ -182,150 +128,76 @@ class Swap:
         return self._A_gamma()[1]
 
     def _fee(self, xp: list[int]) -> int:
-        f: int = curve_v2_math.reduction_coefficient(xp, self.fee_gamma)
+        """
+        f = fee_gamma // (fee_gamma + (1 - K))
+        where
+        K = prod(x) // (sum(x) // N)**N
+        (all normalized to 1e18)
+        """
+        fee_gamma: int = self.fee_gamma
+        f: int = xp[0] + xp[1]  # sum
+        f = fee_gamma * 10**18 // (
+            fee_gamma + 10**18 - (10**18 * N_COINS**N_COINS) * xp[0] // f * xp[1] // f
+        )
         return (self.mid_fee * f + self.out_fee * (10**18 - f)) // 10**18
 
     def fee_calc(self, xp: list[int]) -> int:
         return self._fee(xp)
 
     def get_xcp(self, D: int) -> int:
-        x: list[int] = empty(int, N_COINS)
-        x[0] = D // N_COINS
-        packed_prices: int = self.price_scale_packed
-        # No self.precisions here because we don't switch to "real" units
-
-        for i in range(1, N_COINS):
-            x[i] = D * 10**18 // (N_COINS * bitwise_and(packed_prices, PRICE_MASK))  # ... * PRICE_PRECISION_MUL)
-            packed_prices = shift(packed_prices, -PRICE_SIZE)
-
-        return curve_v2_math.geometric_mean(x)
-
-    def get_dy(self, i: int, j: int, dx: int) -> int:
-        assert i != j and i < N_COINS and j < N_COINS, "coin index out of range"
-        assert dx > 0, "do not exchange 0 coins"
-
-        self.precisions: list[int] = self.precisions
-
-        price_scale: list[int] = empty(int, N_COINS - 1)
-        for k in range(N_COINS - 1):
-            price_scale[k] = self.price_scale(k)
-        xp: list[int] = empty(int, N_COINS)
-        for k in range(N_COINS):
-            xp[k] = self.get_balance(k)
-
-        A: int = self.A()
-        gamma: int = self.gamma()
-        D: int = self.D
-        if self.future_A_gamma_time > 0:
-            _xp: list[int] = shallow_array_copy(xp)
-            _xp[0] *= self.precisions[0]
-            for k in range(N_COINS - 1):
-                _xp[k + 1] = _xp[k + 1] * price_scale[k] * self.precisions[k + 1] // PRECISION
-            D = curve_v2_math.newton_D(A, gamma, _xp)
-
-        xp[i] += dx
-        xp[0] *= self.precisions[0]
-        for k in range(N_COINS - 1):
-            xp[k + 1] = xp[k + 1] * price_scale[k] * self.precisions[k + 1] // PRECISION
-
-        y: int = curve_v2_math.newton_y(A, gamma, xp, D, j)
-        dy: int = xp[j] - y - 1
-        xp[j] = y
-        if j > 0:
-            dy = dy * PRECISION // price_scale[j - 1]
-        dy //= self.precisions[j]
-        dy -= self.fee_calc(xp) * dy // 10 ** 10
-
-        return dy
+        x: list[int] = [D // N_COINS, D * PRECISION // (self.price_scale * N_COINS)]
+        return curve_v2_math.geometric_mean(x, True)
 
     @call_by_value
-    def tweak_price(self, A_gamma: list[int], _xp: list[int], i: int, p_i: int, new_D: int):
-        price_oracle: list[int] = empty(int, N_COINS - 1)
-        last_prices: list[int] = empty(int, N_COINS - 1)
-        price_scale: list[int] = empty(int, N_COINS - 1)
-        xp: list[int] = empty(int, N_COINS)
-        p_new: list[int] = empty(int, N_COINS - 1)
-
-        # Update MA if needed
-        packed_prices: int = self.price_oracle_packed
-        for k in range(N_COINS-1):
-            price_oracle[k] = bitwise_and(packed_prices, PRICE_MASK)  # * PRICE_PRECISION_MUL
-            packed_prices = shift(packed_prices, -PRICE_SIZE)
-
+    def tweak_price(self, A_gamma: list[int],_xp: list[int], p_i: int, new_D: int):
+        price_oracle: int = self.price_oracle
+        last_prices: int = self.last_prices
+        price_scale: int = self.price_scale
         last_prices_timestamp: int = self.last_prices_timestamp
-        packed_prices = self.last_prices_packed
-        for k in range(N_COINS-1):
-            last_prices[k] = bitwise_and(packed_prices, PRICE_MASK)   # * PRICE_PRECISION_MUL
-            packed_prices = shift(packed_prices, -PRICE_SIZE)
+        p_new: int = 0
 
         if last_prices_timestamp < self.block.timestamp:
             # MA update required
             ma_half_time: int = self.ma_half_time
-            alpha: int = curve_v2_math.halfpow((self.block.timestamp - last_prices_timestamp) * 10**18 // ma_half_time, 10**10)
-            packed_prices = 0
-            for k in range(N_COINS-1):
-                price_oracle[k] = (last_prices[k] * (10**18 - alpha) + price_oracle[k] * alpha) // 10**18
-            for k in range(N_COINS-1):
-                packed_prices = shift(packed_prices, PRICE_SIZE)
-                p: int = price_oracle[N_COINS-2 - k]  # // PRICE_PRECISION_MUL
-                assert p < PRICE_MASK
-                packed_prices = bitwise_or(p, packed_prices)
-            self.price_oracle_packed = packed_prices
+            alpha: int = curve_v2_math.halfpow((self.block.timestamp - last_prices_timestamp) * 10**18 // ma_half_time)
+            price_oracle = (last_prices * (10**18 - alpha) + price_oracle * alpha) // 10**18
+            self.price_oracle = price_oracle
             self.last_prices_timestamp = self.block.timestamp
 
         D_unadjusted: int = new_D  # Withdrawal methods know new D already
         if new_D == 0:
             # We will need this a few times (35k gas)
             D_unadjusted = curve_v2_math.newton_D(A_gamma[0], A_gamma[1], _xp)
-        packed_prices = self.price_scale_packed
-        for k in range(N_COINS-1):
-            price_scale[k] = bitwise_and(packed_prices, PRICE_MASK)  # * PRICE_PRECISION_MUL
-            packed_prices = shift(packed_prices, -PRICE_SIZE)
 
         if p_i > 0:
-            # Save the last price
-            if i > 0:
-                last_prices[i-1] = p_i
-            else:
-                # If 0th price changed - change all prices instead
-                for k in range(N_COINS-1):
-                    last_prices[k] = last_prices[k] * 10**18 // p_i
+            last_prices = p_i
+
         else:
             # calculate real prices
-            # it would cost 70k gas for a 3-token pool. Sad. How do we do better?
             __xp: list[int] = shallow_array_copy(_xp)
             dx_price: int = __xp[0] // 10**6
             __xp[0] += dx_price
-            for k in range(N_COINS-1):
-                last_prices[k] = price_scale[k] * dx_price // (_xp[k+1] - curve_v2_math.newton_y(A_gamma[0], A_gamma[1], __xp, D_unadjusted, k+1))
+            last_prices = price_scale * dx_price // (_xp[1] - curve_v2_math.newton_y(A_gamma[0], A_gamma[1], __xp, D_unadjusted, 1))
 
-        packed_prices = 0
-        for k in range(N_COINS-1):
-            packed_prices = shift(packed_prices, PRICE_SIZE)
-            p: int = last_prices[N_COINS-2 - k]  # // PRICE_PRECISION_MUL
-            assert p < PRICE_MASK
-            packed_prices = bitwise_or(p, packed_prices)
-        self.last_prices_packed = packed_prices
+        self.last_prices = last_prices
 
         total_supply: int = self.total_supply
         old_xcp_profit: int = self.xcp_profit
         old_virtual_price: int = self.virtual_price
 
         # Update profit numbers without price adjustment first
-        xp[0] = D_unadjusted // N_COINS
-        for k in range(N_COINS-1):
-            xp[k+1] = D_unadjusted * 10**18 // (N_COINS * price_scale[k])
+        xp: list[int] = [D_unadjusted // N_COINS, D_unadjusted * PRECISION // (N_COINS * price_scale)]
         xcp_profit: int = 10**18
         virtual_price: int = 10**18
 
         if old_virtual_price > 0:
-            xcp: int = curve_v2_math.geometric_mean(xp)
+            xcp: int = curve_v2_math.geometric_mean(xp, True)
             virtual_price = 10**18 * xcp // total_supply
             xcp_profit = old_xcp_profit * virtual_price // old_virtual_price
 
             t: int = self.future_A_gamma_time
             if virtual_price < old_virtual_price and t == 0:
-                raise ValueError("Loss")
+                raise Exception("Loss")
             if t == 1:
                 self.future_A_gamma_time = 0
 
@@ -340,44 +212,28 @@ class Swap:
 
         if needs_adjustment:
             adjustment_step: int = self.adjustment_step
-            norm: int = 0
+            norm: int = price_oracle * 10**18 // price_scale
+            if norm > 10**18:
+                norm -= 10**18
+            else:
+                norm = 10**18 - norm
 
-            for k in range(N_COINS-1):
-                ratio: int = price_oracle[k] * 10**18 // price_scale[k]
-                if ratio > 10**18:
-                    ratio -= 10**18
-                else:
-                    ratio = 10**18 - ratio
-                norm += ratio**2
+            if norm > adjustment_step and old_virtual_price > 0:
+                p_new = (price_scale * (norm - adjustment_step) + adjustment_step * price_oracle) // norm
 
-            if norm > adjustment_step ** 2 and old_virtual_price > 0:
-                norm = curve_v2_math.sqrt_int(norm // 10**18)  # Need to convert to 1e18 units!
-
-                for k in range(N_COINS-1):
-                    p_new[k] = (price_scale[k] * (norm - adjustment_step) + adjustment_step * price_oracle[k]) // norm
                 # Calculate balances*prices
-                xp = shallow_array_copy(_xp)
-                for k in range(N_COINS-1):
-                    xp[k+1] = _xp[k+1] * p_new[k] // price_scale[k]
+                xp = [_xp[0], _xp[1] * p_new // price_scale]
 
                 # Calculate "extended constant product" invariant xCP and virtual price
                 D: int = curve_v2_math.newton_D(A_gamma[0], A_gamma[1], xp)
-                xp[0] = D // N_COINS
-                for k in range(N_COINS-1):
-                    xp[k+1] = D * 10**18 // (N_COINS * p_new[k])
+                xp = [D // N_COINS, D * PRECISION // (N_COINS * p_new)]
                 # We reuse old_virtual_price here but it's not old anymore
-                old_virtual_price = 10**18 * curve_v2_math.geometric_mean(xp) // total_supply
+                old_virtual_price = 10**18 * curve_v2_math.geometric_mean(xp, True) // total_supply
 
                 # Proceed if we've got enough profit
                 # if (old_virtual_price > 10**18) and (2 * (old_virtual_price - 10**18) > xcp_profit - 10**18):
                 if (old_virtual_price > 10**18) and (2 * old_virtual_price - 10**18 > xcp_profit):
-                    packed_prices = 0
-                    for k in range(N_COINS-1):
-                        packed_prices = shift(packed_prices, PRICE_SIZE)
-                        p: int = p_new[N_COINS-2 - k]  # // PRICE_PRECISION_MUL
-                        assert p < PRICE_MASK
-                        packed_prices = bitwise_or(p, packed_prices)
-                    self.price_scale_packed = packed_prices
+                    self.price_scale = p_new
                     self.D = D
                     self.virtual_price = old_virtual_price
 
@@ -386,13 +242,20 @@ class Swap:
                 else:
                     self.not_adjusted = False
 
+                    # Can instead do another flag variable if we want to save bytespace
+                    self.D = D_unadjusted
+                    self.virtual_price = virtual_price
+                    # self._claim_admin_fees()
+
+                    return
+
         # If we are here, the price_scale adjustment did not happen
         # Still need to update the profit counter and D
         self.D = D_unadjusted
         self.virtual_price = virtual_price
 
     @call_by_value
-    def exchange(self, i: int, j: int, dx: int, min_dy: int, use_eth: bool = False) -> int:
+    def exchange(self, i: int, j: int, dx: int, min_dy: int) -> int:
         assert not self.is_killed  # dev: the pool is killed
         assert i != j  # dev: coin index out of range
         assert i < N_COINS  # dev: coin index out of range
@@ -400,162 +263,212 @@ class Swap:
         assert dx > 0  # dev: do not exchange 0 coins
 
         A_gamma: list[int] = self._A_gamma()
-        xp: list[int] = self.get_balances()  # xp: lit[int] = self.balances
-        ix: int = j
+        xp: int[N_COINS] = shallow_array_copy(self.balances)
         p: int = 0
         dy: int = 0
 
-        if True:  # scope to reduce size of memory when making internal calls later
-            y: int = xp[j]
-            x0: int = xp[i]
-            xp[i] = x0 + dx
-            self.set_balance(i, xp[i])  # self.balances[i] = xp[i]
+        y: int = xp[j]
+        x0: int = xp[i]
+        xp[i] = x0 + dx
+        self.balances[i] = xp[i]
 
-            price_scale: list[int] = empty(int, N_COINS-1)
-            packed_prices: int = self.price_scale_packed
-            for k in range(N_COINS-1):
-                price_scale[k] = bitwise_and(packed_prices, PRICE_MASK)  # * PRICE_PRECISION_MUL
-                packed_prices = shift(packed_prices, -PRICE_SIZE)
+        price_scale: int = self.price_scale
 
-            xp[0] *= self.precisions[0]
-            for k in range(1, N_COINS):
-                xp[k] = xp[k] * price_scale[k-1] * self.precisions[k] // PRECISION
+        xp = [xp[0] * self.precisions[0], xp[1] * price_scale * self.precisions[1] // PRECISION]
 
-            prec_i: int = self.precisions[i]
+        prec_i: int = self.precisions[0]
+        prec_j: int = self.precisions[1]
+        if i == 1:
+            prec_i = self.precisions[1]
+            prec_j = self.precisions[0]
 
-            # In case ramp is happening
-            if True:
-                t: int = self.future_A_gamma_time
-                if t > 0:
-                    x0 *= prec_i
-                    if i > 0:
-                        x0 = x0 * price_scale[i-1] // PRECISION
-                    x1: int = xp[i]  # Back up old value in xp
-                    xp[i] = x0
-                    self.D = curve_v2_math.newton_D(A_gamma[0], A_gamma[1], xp)
-                    xp[i] = x1  # And restore
-                    if self.block.timestamp >= t:
-                        self.future_A_gamma_time = 1
+        # In case ramp is happening
+        t: int = self.future_A_gamma_time
+        if t > 0:
+            x0 *= prec_i
+            if i > 0:
+                x0 = x0 * price_scale // PRECISION
+            x1: int = xp[i]  # Back up old value in xp
+            xp[i] = x0
+            self.D = curve_v2_math.newton_D(A_gamma[0], A_gamma[1], xp)
+            xp[i] = x1  # And restore
+            if self.block.timestamp >= t:
+                self.future_A_gamma_time = 1
 
-            prec_j: int = self.precisions[j]
+        dy = xp[j] - curve_v2_math.newton_y(A_gamma[0], A_gamma[1], xp, self.D, j)
+        # Not defining new "y" here to have less variables // make subsequent calls cheaper
+        xp[j] -= dy
+        dy -= 1
 
-            dy = xp[j] - curve_v2_math.newton_y(A_gamma[0], A_gamma[1], xp, self.D, j)
-            # Not defining new "y" here to have less variables // make subsequent calls cheaper
-            xp[j] -= dy
-            dy -= 1
+        if j > 0:
+            dy = dy * PRECISION // price_scale
+        dy //= prec_j
 
-            if j > 0:
-                dy = dy * PRECISION // price_scale[j-1]
-            dy //= prec_j
+        dy -= self._fee(xp) * dy // 10**10
+        assert dy >= min_dy, "Slippage"
+        y -= dy
 
-            dy -= self._fee(xp) * dy // 10**10
-            assert dy >= min_dy, "Slippage"
-            y -= dy
+        self.balances[j] = y
 
-            self.set_balance(j, y)   # self.balances[j] = y
-            # assert might be needed for some tokens - removed one to save bytespace
+        y *= prec_j
+        if j > 0:
+            y = y * price_scale // PRECISION
+        xp[j] = y
 
-            y *= prec_j
-            if j > 0:
-                y = y * price_scale[j-1] // PRECISION
-            xp[j] = y
+        # Calculate price
+        if dx > 10**5 and dy > 10**5:
+            _dx: int = dx * prec_i
+            _dy: int = dy * prec_j
+            if i == 0:
+                p = _dx * 10**18 // _dy
+            else:  # j == 0
+                p = _dy * 10**18 // _dx
 
-            # Calculate price
-            if dx > 10**5 and dy > 10**5:
-                _dx: int = dx * prec_i
-                _dy: int = dy * prec_j
-                if i != 0 and j != 0:
-                    p = bitwise_and(
-                        shift(self.last_prices_packed, -PRICE_SIZE * (i-1)),
-                        PRICE_MASK
-                    ) * _dx // _dy  # * PRICE_PRECISION_MUL
-                elif i == 0:
-                    p = _dx * 10**18 // _dy
-                else:  # j == 0
-                    p = _dy * 10**18 // _dx
-                    ix = i
-
-        self.tweak_price(A_gamma, xp, ix, p, 0)
+        self.tweak_price(A_gamma, xp, p, 0)
 
         return dy
 
-    ### ADDITIONS
+    @call_by_value
+    def add_liquidity(self, amounts: list[int], min_mint_amount: int) -> int:
+        assert not self.is_killed  # dev: the pool is killed
+
+        A_gamma: list[int] = self._A_gamma()
+
+        xp: list[int] = shallow_array_copy(self.balances)
+        amountsp: list[int] = empty(int, N_COINS)
+        xx: list[int] = empty(int, N_COINS)
+        d_token: int = 0
+        d_token_fee: int = 0
+        old_D: int = 0
+
+        xp_old: list[int] = shallow_array_copy(xp)
+
+        for i in range(N_COINS):
+            bal: int = xp[i] + amounts[i]
+            xp[i] = bal
+            self.balances[i] = bal
+        xx = shallow_array_copy(xp)
+
+        price_scale: int = self.price_scale * self.precisions[1]
+        xp = [xp[0] * self.precisions[0], xp[1] * price_scale // PRECISION]
+        xp_old = [xp_old[0] * self.precisions[0], xp_old[1] * price_scale // PRECISION]
+
+        for i in range(N_COINS):
+            if amounts[i] > 0:
+                amountsp[i] = xp[i] - xp_old[i]
+        assert amounts[0] > 0 or amounts[1] > 0  # dev: no coins to add
+
+        t: int = self.future_A_gamma_time
+        if t > 0:
+            old_D = curve_v2_math.newton_D(A_gamma[0], A_gamma[1], xp_old)
+            if self.block.timestamp >= t:
+                self.future_A_gamma_time = 1
+        else:
+            old_D = self.D
+
+        D: int = curve_v2_math.newton_D(A_gamma[0], A_gamma[1], xp)
+
+        token_supply: int = self.total_supply
+        if old_D > 0:
+            d_token = token_supply * D // old_D - token_supply
+        else:
+            d_token = self.get_xcp(D)  # making initial virtual price equal to 1
+        assert d_token > 0  # dev: nothing minted
+
+        if old_D > 0:
+            d_token_fee = self._calc_token_fee(amountsp, xp) * d_token // 10**10 + 1
+            d_token -= d_token_fee
+            token_supply += d_token
+            self.total_supply += d_token
+
+            # Calculate price
+            # p_i * (dx_i - dtoken // token_supply * xx_i) = sum{k!=i}(p_k * (dtoken // token_supply * xx_k - dx_k))
+            # Simplified for 2 coins
+            p: int = 0
+            if d_token > 10**5:
+                if amounts[0] == 0 or amounts[1] == 0:
+                    S: int = 0
+                    precision: int = 0
+                    ix: int = 0
+                    if amounts[0] == 0:
+                        S = xx[0] * self.precisions[0]
+                        precision = self.precisions[1]
+                        ix = 1
+                    else:
+                        S = xx[1] * self.precisions[1]
+                        precision = self.precisions[0]
+                    S = S * d_token // token_supply
+                    p = S * PRECISION // (amounts[ix] * precision - d_token * xx[ix] * precision // token_supply)
+                    if ix == 0:
+                        p = (10**18)**2 // p
+
+            self.tweak_price(A_gamma, xp, p, D)
+
+        else:
+            self.D = D
+            self.virtual_price = 10**18
+            self.xcp_profit = 10**18
+            self.total_supply += d_token
+
+        assert d_token >= min_mint_amount, "Slippage"
+
+        return d_token
+        
     def get_dy(self, i: int, j: int, dx: int) -> int:
-        assert i != j and i < N_COINS and j < N_COINS, "coin index out of range"
-        assert dx > 0, "do not exchange 0 coins"
+        assert i != j  # dev: same input and output coin
+        assert i < N_COINS  # dev: coin index out of range
+        assert j < N_COINS  # dev: coin index out of range
 
-        self.precisions: list[int] = self.precisions
+        price_scale: int = self.price_scale * self.precisions[1]
+        xp: list[int] = shallow_array_copy(self.balances)
 
-        price_scale: list[int] = empty(int, N_COINS - 1)
-        for k in range(N_COINS - 1):
-            price_scale[k] = self.price_scale(k)
-        xp: list[int] = empty(int, N_COINS)
-        for k in range(N_COINS):
-            xp[k] = self.get_balance(k)
-
-        A: int = self.A()
-        gamma: int = self.gamma()
+        A_gamma: list[int] = self._A_gamma()
         D: int = self.D
         if self.future_A_gamma_time > 0:
-            _xp: list[int] = shallow_array_copy(xp)
-            _xp[0] *= self.precisions[0]
-            for k in range(N_COINS - 1):
-                _xp[k + 1] = _xp[k + 1] * price_scale[k] * self.precisions[k + 1] // 10**18
-            D = curve_v2_math.newton_D(A, gamma, _xp)
+            D = curve_v2_math.newton_D(A_gamma[0], A_gamma[1], self.xp())
 
         xp[i] += dx
-        xp[0] *= self.precisions[0]
-        for k in range(N_COINS - 1):
-            xp[k + 1] = xp[k + 1] * price_scale[k] * self.precisions[k + 1] // 10**18
+        xp = [xp[0] * self.precisions[0], xp[1] * price_scale // PRECISION]
 
-        y: int = curve_v2_math.newton_y(A, gamma, xp, D, j)
+        y: int = curve_v2_math.newton_y(A_gamma[0], A_gamma[1], xp, D, j)
         dy: int = xp[j] - y - 1
         xp[j] = y
         if j > 0:
-            dy = dy * 10**18 // price_scale[j - 1]
-        dy //= self.precisions[j]
-        dy -= self.fee_calc(xp) * dy // 10 ** 10
+            dy = dy * PRECISION // price_scale
+        else:
+            dy //= self.precisions[0]
+        dy -= self._fee(xp) * dy // 10**10
 
         return dy
 
     def xp(self) -> list[int]:
-        result: list[int] = self.get_balances()
-        packed_prices: int = self.price_scale_packed
+        return [self.balances[0] * self.precisions[0],
+                curve_v2_math.unsafe_div(self.balances[1] * self.precisions[1] * self.price_scale, PRECISION)]
 
-        result[0] *= self.precisions[0]
-        for i in range(1, N_COINS):
-            p: int = bitwise_and(packed_prices, PRICE_MASK) * self.precisions[i]  # * PRICE_PRECISION_MUL
-            result[i] = result[i] * p // PRECISION
-            packed_prices = shift(packed_prices, -PRICE_SIZE)
+    def _calc_token_fee(self, amounts: list[int], xp: list[int]) -> int:
+        # fee = sum(amounts_i - avg(amounts)) * fee' // sum(amounts)
+        fee: int = self._fee(xp) * N_COINS // (4 * (N_COINS-1))
+        S: int = 0
+        for _x in amounts:
+            S += _x
+        avg: int = S // N_COINS
+        Sdiff: int = 0
+        for _x in amounts:
+            if _x > avg:
+                Sdiff += _x - avg
+            else:
+                Sdiff += avg - _x
+        return fee * Sdiff // S + NOISE_FEE
 
-        return result
-
-    @staticmethod
-    def pack_prices(prices):
-        packed_prices: int = 0
-        for k in range(N_COINS-1):
-            packed_prices = shift(packed_prices, PRICE_SIZE)
-            p: int = prices[N_COINS-2 - k]  # // PRICE_PRECISION_MUL
-            assert p < PRICE_MASK
-            packed_prices = bitwise_or(p, packed_prices)
-        return packed_prices
-    
-    @staticmethod
-    def unpack_prices(packed_prices):
-        prices: list[int] = empty(int, N_COINS-1)
-        for k in range(N_COINS-1):
-            prices[k] = bitwise_and(packed_prices, PRICE_MASK)  # * PRICE_PRECISION_MUL
-            packed_prices = shift(packed_prices, -PRICE_SIZE)
-        return prices
-
+    ### ADDITIONS
     def get_balances(self):
-        return shallow_array_copy(self._balances)
+        return shallow_array_copy(self.balances)
 
     def set_balances(self, balances):
-        self._balances = shallow_array_copy(balances)
+        self.balances = shallow_array_copy(balances)
 
     def get_balance(self, k):
-        return self._balances[k]
+        return self.balances[k]
 
     def set_balance(self, k, v):
-        self._balances[k] = v
+        self.balances[k] = v

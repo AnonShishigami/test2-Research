@@ -135,28 +135,57 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
                 z, horizon, lookback_calls, lookback_step,
             )
             return lp
-    elif typo == "curvev2_tricrypto":
+    elif typo == "curvev2":
         def lp_init():
             name = extra_params['name']
             initial_prices = extra_params["initial_prices"]
             A = extra_params["A"]
             gamma = extra_params["gamma"]
+            adjustment_step = extra_params["adjustment_step"]
+            mid_fee = extra_params["mid_fee"]
+            out_fee = extra_params["out_fee"]
+            allowed_extra_profit = extra_params["allowed_extra_profit"]
+            fee_gamma = extra_params["fee_gamma"]
+            admin_fee = extra_params["admin_fee"]
+            ma_half_time = extra_params["ma_half_time"]
             lp = CurveV2(
                 f'{name}', initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), True, initial_prices, dt_sim, 
-                A=A, gamma=gamma
+                A=A, gamma=gamma,
+                mid_fee=mid_fee,
+                out_fee=out_fee,
+                allowed_extra_profit=allowed_extra_profit,
+                fee_gamma=fee_gamma,
+                adjustment_step=adjustment_step,
+                admin_fee=admin_fee,
+                ma_half_time=ma_half_time,
             )
             return lp
-    elif typo == "curvev2_tricrypto_noarb":
+    elif typo == "curvev2_noarb":
         def lp_init():
             name = extra_params['name']
             initial_prices = extra_params["initial_prices"]
             A = extra_params["A"]
             gamma = extra_params["gamma"]
+            adjustment_step = extra_params["adjustment_step"]
+            mid_fee = extra_params["mid_fee"]
+            out_fee = extra_params["out_fee"]
+            allowed_extra_profit = extra_params["allowed_extra_profit"]
+            fee_gamma = extra_params["fee_gamma"]
+            admin_fee = extra_params["admin_fee"]
+            ma_half_time = extra_params["ma_half_time"]
             lp = CurveV2(
                 f'{name}_noarb', initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), False, initial_prices, dt_sim, 
-                A=A, gamma=gamma
+                A=A,
+                gamma=gamma,
+                mid_fee=mid_fee,
+                out_fee=out_fee,
+                allowed_extra_profit=allowed_extra_profit,
+                fee_gamma=fee_gamma,
+                adjustment_step=adjustment_step,
+                admin_fee=admin_fee,
+                ma_half_time=ma_half_time,
             )
             return lp
     elif typo == 'POmyopic':
@@ -299,8 +328,8 @@ def main():
         "PObcf_noarb",
         "SObcf",
         "POmyopic_noarb",
-        "curvev2_tricrypto_noarb",
-        "curvev2_tricrypto",
+        "curvev2_noarb",
+        "curvev2",
     ]:
 
         start = time.time()
@@ -398,21 +427,31 @@ def main():
             arb_volumes.append(arb_volume)
             colors.append("black")
 
-        elif "curvev2_tricrypto" in typo:
-            if typo == "curvev2_tricrypto":
+        elif "curvev2" in typo:
+            if typo == "curvev2":
                 color = "lightcoral"
-            elif typo == "curvev2_tricrypto_noarb":
+            elif typo == "curvev2_noarb":
                 color = "crimson"
             else:
                 raise ValueError("Unrecognized typo:", typo)
             param_values = [
-                (5400000, 20000000000000, "polygon"),
-                (1707629, 11809167828997, "ethereum"),
+                (5400000, 20000000000000, "1"),
+                (1707629, 11809167828997, "2"),
+                (400000, 145000000000000, "3"),
+                (200000000, 200000000000000, "4"),
+                (2500000, 15000000000000, "5"),
             ]
             param_schema = [
                 "A",
                 "gamma",
-                "chain"
+                "mid_fee",
+                "out_fee",
+                "allowed_extra_profit",
+                "fee_gamma",
+                "adjustment_step",
+                "admin_fee",
+                "ma_half_time",
+                "id"
             ]
             jobs = []
             params = [
@@ -420,7 +459,7 @@ def main():
                 for param in param_values
             ]
             for idx, param in enumerate(params):
-                param["name"] = f'tricrypto_{param["chain"]}'
+                param["name"] = f'curvev2_{param["id"]}'
                 param["initial_prices"] = initial_prices
                 lp_params = (typo, initial_inventories, initial_cash, param)
                 job = Process(target=monte_carlo,

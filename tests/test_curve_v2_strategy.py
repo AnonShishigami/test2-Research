@@ -30,17 +30,28 @@ class TestCurveV2(StrategyTestTemplate, unittest.TestCase):
         xcp_profit = state["xcp_profit"]
         xcp_profit_a = state["xcp_profit_a"]
         adjustment_step = state["adjustment_step"]
+        mid_fee = state["mid_fee"]
+        out_fee = state["out_fee"]
+        allowed_extra_profit = state["allowed_extra_profit"]
+        fee_gamma = state["fee_gamma"]
+        admin_fee = state["admin_fee"]
+        ma_half_time = state["ma_half_time"]
         
         # hardcoded
         not_adjusted = True
-        precisions = [10 ** 12, 10 ** 10, 1]
+        precisions = [10 ** 12, 1]
                 
         strategy = CurveV2(
             name="curve_v2", 
             initial_inventories=balances,  # will be overwritten right below
             A=A, gamma=gamma,
+
+            mid_fee=mid_fee, out_fee=out_fee, allowed_extra_profit=allowed_extra_profit,
+            fee_gamma=fee_gamma, adjustment_step=adjustment_step,
+            admin_fee=admin_fee, ma_half_time=ma_half_time,
+
             initial_cash=0, market=None, oracle=StrategyTestOracle(), support_arb=False, 
-            initial_prices=[1, 1, 1],  # hackish way of faking buy quote (to comply with Curve's interface) with sell quote (to comply with this tool's interface)
+            initial_prices=[1, 1],  # hackish way of faking buy quote (to comply with Curve's interface) with sell quote (to comply with this tool's interface)
             precisions=precisions,
             dt_sim=1,
             input_precision_factor=1
@@ -50,10 +61,10 @@ class TestCurveV2(StrategyTestTemplate, unittest.TestCase):
         strategy.smart_contract.D = D
         strategy.smart_contract.future_A_gamma_time = future_A_gamma_time
         
-        strategy.smart_contract.price_scale_packed = strategy.smart_contract.pack_prices(price_scale)
-        strategy.smart_contract.last_prices_packed = strategy.smart_contract.pack_prices(last_prices)
+        strategy.smart_contract.price_scale = price_scale
+        strategy.smart_contract.last_prices = last_prices
         strategy.smart_contract.last_prices_timestamp = last_prices_timestamp
-        strategy.smart_contract.price_oracle_packed = strategy.smart_contract.pack_prices(price_oracle)
+        strategy.smart_contract.price_oracle = price_oracle
         strategy.smart_contract.xcp_profit = xcp_profit
         strategy.smart_contract.xcp_profit_a = xcp_profit_a
         strategy.smart_contract.virtual_price = virtual_price
@@ -71,70 +82,57 @@ class TestCurveV2(StrategyTestTemplate, unittest.TestCase):
             {
                 # corresponds to the state right before the first event was validated on chain
                 "init_state": {
-                    "D": 261060990592972941853552934,
-                    "A": 1707629,
-                    "gamma": 11809167828997,
-                    "price_scale": [21539932720675192810676, 1699864853713229400872],
-                    "balances": [86372512675968, 406208864120, 51293610544089081651002],
-                    "last_prices": [21467496094400000000000, 1692845955692876735836],
-                    "last_prices_timestamp": 1661446304,
-                    "price_oracle": [21525754826108556482334, 1699466274394784131114],
-                    "virtual_price": 1021949543493453999,
+                    "D": 15390672454698502979973257,
+                    "A": 200000000,
+                    "gamma": 200000000000000,
+                    "price_scale": 987655216778603916,
+                    "balances": [8261874417624, 7220619435590432462231048],
+                    "last_prices": 1010763417490556501,
+                    "last_prices_timestamp": 1662967912,
+                    "price_oracle": 1016687427501964241,
+                    "virtual_price": 1005978051045569641,
                     "future_A_gamma_time": 0,
-                    "total_supply": 256431689600498313210511,
-                    "xcp_profit": 1043832045744687957,
-                    "xcp_profit_a": 1043566090540808146,
-                    "adjustment_step": 2000000000000000,
+                    "total_supply": 7697264559353135143467051,
+                    "xcp_profit": 1011896327615718437,
+                    "xcp_profit_a": 1011896327615718437,
+                    "adjustment_step": 1000000000000000,
+                    "mid_fee": 5000000,
+                    "out_fee": 45000000,
+                    "allowed_extra_profit": 10000000000,
+                    "fee_gamma": 5000000000000000,
+                    "admin_fee": 5000000000,
+                    "ma_half_time": 2000,
                 },
                 "events": [
                     {
-                        "block": 15410251,
-                        "type": "TokenExchange",
-                        "sold_id": 2,
-                        "tokens_sold": 118634129499999993856,
-                        "bought_id": 1,
-                        "tokens_bought": 936014609,
-                        "timestamp": 1661446312,
-                        "state": {
-                            "D": 261061130400381923088444169,
-                            "A": 1707629,
-                            "gamma": 11809167828997,
-                            "price_scale": [21539932720675192810676, 1699864853713229400872],
-                            "balances": [86372512675968, 405272849511, 51412244673589081644858],
-                            "last_prices": [21455787591368671736816, 1692845955692876735836],
-                            "last_prices_timestamp": 1661446312,
-                            "price_oracle": [21525218881804045034049, 1699405371556732530017],
-                            "virtual_price": 1021950090783638797,
-                            "future_A_gamma_time": 0,
-                            "total_supply": 256431689600498313210511,
-                            "xcp_profit": 1043832604753727934,
-                            "xcp_profit_a": 1043566090540808146,
-                            "adjustment_step": 2000000000000000,
-                        },
-                    },
-                    {
-                        "block": 15410271,
+                        "block": 15519742,
                         "type": "TokenExchange",
                         "sold_id": 1,
-                        "tokens_sold": 512108000,
-                        "bought_id": 2,
-                        "tokens_bought": 64843530378856012723,
-                        "timestamp": 1661446627,
+                        "tokens_sold": 17610763686547556188457,
+                        "bought_id": 0,
+                        "tokens_bought": 17758166916,
+                        "timestamp": 1662968875,
                         "state": {
-                            "D": 260815062395012578291509280,
-                            "A": 1707629,
-                            "gamma": 11809167828997,
-                            "price_scale": [21507408828544127644367, 1697635438890754522343],
-                            "balances": [86372512675968, 405784957511, 51347401143210225632135],
-                            "last_prices": [21455787591368671736816, 1694491402248428196440],
-                            "last_prices_timestamp": 1661446627,
-                            "price_oracle": [21504039499539275573971, 1697404481538081561991],
-                            "virtual_price": 1021948190737270899,
+                            "D": 15397947078550033149048456,
+                            "A": 200000000,
+                            "gamma": 200000000000000,
+                            "price_scale": 988642871995382519,
+                            "balances": [8244116250708, 7238230199276980018419505],
+                            "last_prices": 1008370064585276425,
+                            "last_prices_timestamp": 1662968875,
+                            "price_oracle": 1015006386351993726,
+                            "virtual_price": 1005950691450940233,
                             "future_A_gamma_time": 0,
-                            "total_supply": 256431689600498313210511,
-                            "xcp_profit": 1043832910715893643,
-                            "xcp_profit_a": 1043566090540808146,
-                            "adjustment_step": 2000000000000000,
+                            "total_supply": 7697264559353135143467051,
+                            "xcp_profit": 1011899238035454493,
+                            "xcp_profit_a": 1011896327615718437,
+                            "adjustment_step": 1000000000000000,
+                            "mid_fee": 5000000,
+                            "out_fee": 45000000,
+                            "allowed_extra_profit": 10000000000,
+                            "fee_gamma": 5000000000000000,
+                            "admin_fee": 5000000000,
+                            "ma_half_time": 2000,
                         },
                     },
                 ]
@@ -145,7 +143,7 @@ class TestCurveV2(StrategyTestTemplate, unittest.TestCase):
         if event["type"] == "TokenExchange":
             return (
                 event["tokens_sold"] / event["tokens_bought"],
-                1 if self.strategy.asset_1_index == event["bought_id"] else 0,
+                event["bought_id"],
                 event["tokens_sold"],  # hackish way of faking buy quote (to comply with Curve's interface) with sell quote (to comply with this tool's interface)
                 event["timestamp"],
             )
@@ -153,7 +151,7 @@ class TestCurveV2(StrategyTestTemplate, unittest.TestCase):
     
     def _generate_state_getter(self):
         return lambda: dict((
-            ("balances", self.strategy.smart_contract.get_balances()),
+            ("balances", self.strategy.smart_contract.balances),
             ("A", self.strategy.smart_contract.A()),
             ("D", self.strategy.smart_contract.D),
             ("gamma", self.strategy.smart_contract.gamma()),
@@ -164,9 +162,15 @@ class TestCurveV2(StrategyTestTemplate, unittest.TestCase):
             ("virtual_price", self.strategy.smart_contract.virtual_price),
             ("total_supply", self.strategy.smart_contract.total_supply),
             ("adjustment_step", self.strategy.smart_contract.adjustment_step),
-            ("price_scale", self.strategy.smart_contract.unpack_prices(self.strategy.smart_contract.price_scale_packed)),
-            ("last_prices", self.strategy.smart_contract.unpack_prices(self.strategy.smart_contract.last_prices_packed)),
-            ("price_oracle", self.strategy.smart_contract.unpack_prices(self.strategy.smart_contract.price_oracle_packed)),
+            ("price_scale", self.strategy.smart_contract.price_scale),
+            ("last_prices", self.strategy.smart_contract.last_prices),
+            ("price_oracle", self.strategy.smart_contract.price_oracle),
+            ("mid_fee", self.strategy.smart_contract.mid_fee),
+            ("out_fee", self.strategy.smart_contract.out_fee),
+            ("allowed_extra_profit", self.strategy.smart_contract.allowed_extra_profit),
+            ("fee_gamma", self.strategy.smart_contract.fee_gamma),
+            ("admin_fee", self.strategy.smart_contract.admin_fee),
+            ("ma_half_time", self.strategy.smart_contract.ma_half_time),
         ))
 
 

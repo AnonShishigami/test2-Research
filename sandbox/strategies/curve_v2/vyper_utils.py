@@ -40,3 +40,4 @@ def bitwise_and(x, y):
 
 def empty(t, size):
     return [0 for _ in range(size)]
+

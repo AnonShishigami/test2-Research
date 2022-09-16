@@ -5,17 +5,11 @@
 # Unless otherwise agreed on, only contracts owned by Curve DAO or
 # Swiss Stake GmbH are allowed to call this contract.
 
-from sandbox.strategies.curve_v2.vyper_utils import call_by_value
+from sandbox.strategies.curve_v2.vyper_utils import call_by_value, shallow_array_copy
+from sandbox.strategies.curve_v2.curve_v2_config import (
+    N_COINS, A_MULTIPLIER, MIN_GAMMA, MAX_GAMMA, MIN_A, MAX_A, EXP_PRECISION
+)
 
-
-N_COINS: int = 3  # <- change
-A_MULTIPLIER: int = 10000
-
-MIN_GAMMA: int = 10 ** 10
-MAX_GAMMA: int = 5 * 10 ** 16
-
-MIN_A: int = N_COINS ** N_COINS * A_MULTIPLIER // 100
-MAX_A: int = N_COINS ** N_COINS * A_MULTIPLIER * 1000
 
 @call_by_value
 def sort_function(A0: list[int]) -> list[int]:
@@ -37,55 +31,32 @@ def sort_function(A0: list[int]) -> list[int]:
         A[cur] = x
     return A
 
+
 @call_by_value
-def _geometric_mean(unsorted_x: list[int], sort: bool = True) -> int:
+def geometric_mean(unsorted_x: list[int], sort: bool) -> int:
     """
     (x[0] * x[1] * ...) ** (1/N)
     """
-    x: list[int] = [v for v in unsorted_x]
-    if sort:
-        x = sort_function(x)
+    x: list[int] =shallow_array_copy(unsorted_x)
+    if sort and x[0] < x[1]:
+        x = [unsorted_x[1], unsorted_x[0]]
     D: int = x[0]
     diff: int = 0
     for i in range(255):
         D_prev: int = D
-        tmp: int = 10**18
-        for _x in x:
-            tmp = tmp * _x // D
-        D = D * ((N_COINS - 1) * 10**18 + tmp) // (N_COINS * 10**18)
+        # tmp: int = 10**18
+        # for _x in x:
+        #     tmp = tmp * _x // D
+        # D = D * ((N_COINS - 1) * 10**18 + tmp) // (N_COINS * 10**18)
+        # line below makes it for 2 coins
+        D = (D + x[0] * x[1] // D) // N_COINS
         if D > D_prev:
             diff = D - D_prev
         else:
             diff = D_prev - D
         if diff <= 1 or diff * 10**18 < D:
             return D
-    raise ValueError("Did not converge")
-
-
-@call_by_value
-def geometric_mean(unsorted_x: list[int], sort: bool = True) -> int:
-    return _geometric_mean(unsorted_x, sort)
-
-
-@call_by_value
-def reduction_coefficient(x: list[int], fee_gamma: int) -> int:
-    """
-    fee_gamma // (fee_gamma + (1 - K))
-    where
-    K = prod(x) // (sum(x) // N)**N
-    (all normalized to 1e18)
-    """
-    K: int = 10**18
-    S: int = 0
-    for x_i in x:
-        S += x_i
-    # Could be good to pre-sort x, but it is used only for dynamic fee,
-    # so that is not so important
-    for x_i in x:
-        K = K * N_COINS * x_i // S
-    if fee_gamma > 0:
-        K = fee_gamma * 10**18 // (fee_gamma + 10**18 - K)
-    return K
+    raise Exception("Did not converge")
 
 
 @call_by_value
@@ -94,6 +65,7 @@ def newton_D(ANN: int, gamma: int, x_unsorted: list[int]) -> int:
     Finding the invariant using Newton method.
     ANN is higher by the factor A_MULTIPLIER
     ANN is already A * N**N
+
     Currently uses 60k gas
     """
     # Safety checks
@@ -101,24 +73,24 @@ def newton_D(ANN: int, gamma: int, x_unsorted: list[int]) -> int:
     assert gamma > MIN_GAMMA - 1 and gamma < MAX_GAMMA + 1  # dev: unsafe values gamma
 
     # Initial value of invariant D is that for constant-product invariant
-    x: list[int] = sort_function(x_unsorted)
+    x: list[int] = shallow_array_copy(x_unsorted)
+    if x[0] < x[1]:
+        x = [x_unsorted[1], x_unsorted[0]]
 
     assert x[0] > 10**9 - 1 and x[0] < 10**15 * 10**18 + 1  # dev: unsafe values x[0]
-    for i in range(1, N_COINS):
-        frac: int = x[i] * 10**18 // x[0]
-        assert frac > 10**11-1  # dev: unsafe values x[i]
+    assert x[1] * 10**18 // x[0] > 10**14-1  # dev: unsafe values x[i] (input)
 
-    D: int = N_COINS * _geometric_mean(x, False)
-    S: int = 0
-    for x_i in x:
-        S += x_i
+    D: int = N_COINS * geometric_mean(x, False)
+    S: int = x[0] + x[1]
 
     for i in range(255):
         D_prev: int = D
 
-        K0: int = 10**18
-        for _x in x:
-            K0 = K0 * _x * N_COINS // D
+        # K0: int = 10**18
+        # for _x in x:
+        #     K0 = K0 * _x * N_COINS // D
+        # collapsed for 2 coins
+        K0: int = (10**18 * N_COINS**2) * x[0] // D * x[1] // D
 
         _g1k0: int = gamma + 10**18
         if _g1k0 > K0:
@@ -159,7 +131,8 @@ def newton_D(ANN: int, gamma: int, x_unsorted: list[int]) -> int:
                 assert (frac > 10**16 - 1) and (frac < 10**20 + 1)  # dev: unsafe values x[i]
             return D
 
-    raise ValueError("Did not converge")
+    raise Exception("Did not converge")
+
 
 @call_by_value
 def newton_y(ANN: int, gamma: int, x: list[int], D: int, i: int) -> int:
@@ -171,32 +144,27 @@ def newton_y(ANN: int, gamma: int, x: list[int], D: int, i: int) -> int:
     assert ANN > MIN_A - 1 and ANN < MAX_A + 1  # dev: unsafe values A
     assert gamma > MIN_GAMMA - 1 and gamma < MAX_GAMMA + 1  # dev: unsafe values gamma
     assert D > 10**17 - 1 and D < 10**15 * 10**18 + 1 # dev: unsafe values D
-    for k in range(N_COINS):
-        if k != i:
-            frac: int = x[k] * 10**18 // D
-            assert (frac > 10**16 - 1) and (frac < 10**20 + 1)  # dev: unsafe values x[i]
 
-    y: int = D // N_COINS
-    K0_i: int = 10**18
-    S_i: int = 0
+    x_j: int = x[1 - i]
+    y: int = D**2 // (x_j * N_COINS**2)
+    K0_i: int = (10**18 * N_COINS) * x_j // D
+    # S_i = x_j
 
-    x_sorted: list[int] = [v for v in x]
-    x_sorted[i] = 0
-    x_sorted = sort_function(x_sorted)  # From high to low
+    # frac = x_j * 1e18 // D => frac = K0_i // N_COINS
+    assert (K0_i > 10**16*N_COINS - 1) and (K0_i < 10**20*N_COINS + 1)  # dev: unsafe values x[i]
 
-    convergence_limit: int = max(max(x_sorted[0] // 10**14, D // 10**14), 100)
-    for j in range(2, N_COINS+1):
-        _x: int = x_sorted[N_COINS-j]
-        y = y * D // (_x * N_COINS)  # Small _x first
-        S_i += _x
-    for j in range(N_COINS-1):
-        K0_i = K0_i * x_sorted[j] * N_COINS // D  # Large _x first
+    # x_sorted: list[int] = x
+    # x_sorted[i] = 0
+    # x_sorted = sort(x_sorted)  # From high to low
+    # x[not i] instead of x_sorted since x_soted has only 1 element
+
+    convergence_limit: int = max(max(x_j // 10**14, D // 10**14), 100)
 
     for j in range(255):
         y_prev: int = y
 
         K0: int = K0_i * y * N_COINS // D
-        S: int = S_i + y
+        S: int = x_j + y
 
         _g1k0: int = gamma + 10**18
         if _g1k0 > K0:
@@ -240,12 +208,13 @@ def newton_y(ANN: int, gamma: int, x: list[int], D: int, i: int) -> int:
             assert (frac > 10**16 - 1) and (frac < 10**20 + 1)  # dev: unsafe value for y
             return y
 
-    raise ValueError("Did not converge")
+    raise Exception("Did not converge")
 
 
-def halfpow(power: int, precision: int) -> int:
+def halfpow(power: int) -> int:
     """
     1e18 * 0.5 ** (power/1e18)
+
     Inspired by: https://github.com/balancer-labs/balancer-core/blob/master/contracts/BNum.sol#L128
     """
     intpow: int = power // 10**18
@@ -274,69 +243,7 @@ def halfpow(power: int, precision: int) -> int:
             S -= term
         else:
             S += term
-        if term < precision:
+        if term < EXP_PRECISION:
             return result * S // 10**18
 
-    raise ValueError("Did not converge")
-
-
-def sqrt_int(x: int) -> int:
-    """
-    Originating from: https://github.com/vyperlang/vyper/issues/1266
-    """
-
-    if x == 0:
-        return 0
-
-    z: int = (x + 10**18) // 2
-    y: int = x
-
-    for i in range(256):
-        if z == y:
-            return y
-        y = z
-        z = (x * 10**18 // z + z) // 2
-
-    raise ValueError("Did not converge")
-
-
-if __name__ == "__main__":
-    GT = 670293730884516
-
-    PRECISION = 10**18
-
-    precisions = [
-        1,
-        10 ** 10,
-        1,
-    ]
-
-    A_gamma = [
-        5400000,
-        20000000000000,
-    ]
-
-    i = 0
-    j = 2
-    dx = PRECISION
-
-    D = 34043930643673968447856573
-    price_scale = [20077744094987371576411, 1484536006521280405267]
-    xp = [11464605823397982810598800, 56420913641, 7579069906017834891729]
-    # xp[0] - 121864366071412405553
-    # xp[1] -= 599732
-    # xp[2] -= 80562608408461817
-
-    xp[i] += dx
-
-    for k in range(1, N_COINS):
-        xp[k] = xp[k] * price_scale[k - 1] * precisions[k] // PRECISION
-
-    print("xp:", xp)
-    dy = xp[j] - newton_y(A_gamma[0], A_gamma[1], xp, D, j)
-    print("raw dy:", dy)
-
-    dy = dy * PRECISION // price_scale[j - 1]
-    print("dy:", dy)
-
-    print(f"error: {(GT / dy - 1) * 100}%")
+    raise Exception("Did not converge")
