@@ -8,18 +8,21 @@ class SwaapV1(CFMMPowers):
     def __init__(
         self, name, initial_inventories, initial_cash, market, oracle, support_arb, delta,
         z, horizon, lookback_calls, lookback_step,
+        concentration=1
     ):
-        super().__init__(name, initial_inventories, initial_cash, market, oracle, support_arb, np.array([0.5, 0.5]), delta)
+        super().__init__(name, initial_inventories, initial_cash, market, oracle, support_arb, [1, 1], delta, concentration=concentration)
 
         self.initial_price = None
         self.initial_weights = {
-            0: self.w0,
-            1: self.w1
+            0: self.w0 / (self.w0 + self.w1),
+            1: self.w1 / (self.w0 + self.w1),
         }
+        
         self.lookback_calls = lookback_calls
         self.lookback_step = lookback_step
         self.horizon = horizon
         self.z = z
+        self.concentrated_inventories = [i * np.sqrt(self.concentration) for i in self.inventories]
 
     def set__init__price(self, time):
         self.initial_price = {
@@ -48,11 +51,13 @@ class SwaapV1(CFMMPowers):
         p, cash = self.pricing_function_wrapper(
             nb_coins_0,
             swap_price_10,
-            0
+            0,
         )
         return p, cash
 
     def pricing_function_wrapper(self, amount_out, price, index_out):
+        if min(self.concentrated_inventories[index_out], self.inventories[index_out]) < amount_out:
+            return np.inf, 0.
         index_in = 0 if index_out == 1 else 1
         dynamic_weights = self.get_dynamic_weights(price, index_out)
         price = self.pricing_function(
@@ -71,25 +76,35 @@ class SwaapV1(CFMMPowers):
         if r_out <= amount_out:
             return np.inf, 0.
         else:
-            # weights dynamically adjusted according to assets's relative performance
 
+            eq_r_in = r_in
+            eq_r_out = r_out
+
+            r_in = self.concentrated_inventories[index_in]
+            r_out = self.concentrated_inventories[index_out]
+        
             # defines abundance / shortage boundary
             r_out_at_oracle_price = self.get_in_reserve_at_price(
-                r_out, dynamic_weights[index_out],
-                r_in, dynamic_weights[index_in],
+                eq_r_out, dynamic_weights[index_out],
+                eq_r_in, dynamic_weights[index_in],
                 1 / price_out
             )
-            if r_out - amount_out > r_out_at_oracle_price:
+
+            if eq_r_out - amount_out > r_out_at_oracle_price:
                 # abundance phase only
                 return self.get_cfmm_powers_price(
                     r_in, dynamic_weights[index_in],
                     r_out, dynamic_weights[index_out],
                     amount_out,
-                    delta
+                    delta,
                 )
+
 
             # will experience shortage phase
             spread_factor = self.get_spread_factor(route=f"{index_in}{index_out}")
+
+            # transposing to the concentrated liquidity domain
+            r_out_at_oracle_price = r_out - (eq_r_out - r_out_at_oracle_price)
 
             if r_out > r_out_at_oracle_price:
                 # abundance before shortage phase
@@ -98,7 +113,7 @@ class SwaapV1(CFMMPowers):
                     r_in, dynamic_weights[index_in],
                     r_out, dynamic_weights[index_out],
                     a_amount,
-                    delta
+                    delta,
                 )
                 # shortage phase
                 dynamic_weights = self.apply_spread(dynamic_weights, index_out, spread_factor)
@@ -107,7 +122,7 @@ class SwaapV1(CFMMPowers):
                     r_in + a_price * a_amount, dynamic_weights[index_in],
                     r_out - a_amount, dynamic_weights[index_out],
                     s_amount,
-                    delta
+                    delta,
                 )
                 return (a_price * a_amount + s_price * s_amount) / (a_amount + s_amount)
 
@@ -117,7 +132,7 @@ class SwaapV1(CFMMPowers):
                 r_in, dynamic_weights[index_in],
                 r_out, dynamic_weights[index_out],
                 amount_out,
-                delta
+                delta,
             )
 
     def get_dynamic_weights(self, running_price, index):
@@ -170,3 +185,4 @@ class SwaapV1(CFMMPowers):
     def get_in_reserve_at_price(r_in, w_in, r_out, w_out, price):
         r_in_eq = ((price * w_in / w_out * r_out) ** w_out) * r_in ** w_in
         return r_in_eq
+    
