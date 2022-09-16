@@ -97,8 +97,9 @@ class BaseLiquidityProvider:
 
         if amount:
             self.restore_state(state)
-            self.proposed_swap_prices_01(time, amount)
-            self.update_01(1)
+            proposed_swap_price_01 = self.proposed_swap_prices_01(time, amount)
+            if proposed_swap_price_01 * (1 + relative_cost) <= swap_price_01:
+                self.update_01(1)
 
         return amount
 
@@ -124,8 +125,9 @@ class BaseLiquidityProvider:
 
         if amount:
             self.restore_state(state)
-            self.proposed_swap_prices_10(time, amount)
-            self.update_10(1)
+            proposed_swap_price_10 = self.proposed_swap_prices_10(time, amount)
+            if proposed_swap_price_10 * (1 + relative_cost) <= swap_price_10:
+                self.update_10(1)
 
         return amount
 
