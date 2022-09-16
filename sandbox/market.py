@@ -80,19 +80,21 @@ class Market:
                     proposed_swap_delta_01 = (proposed_swap_price_01 - current_swap_price_01) / current_swap_price_01
                     proposed_swap_price_diffs[2 * t] = proposed_swap_delta_01
                     proba_01 = 1. - np.exp(- self.intensities_functions_01[size_index](proposed_swap_delta_01) * dt)
-                    trade_01 = np.random.binomial(1, proba_01)
-                    lp.update_01(trade_01)
-                    if trade_01:
-                        volumes[t+1] += size         
+                    if proba_01 > 0:
+                        trade_01 = np.random.binomial(1, proba_01)
+                        lp.update_01(trade_01)
+                        if trade_01:
+                            volumes[t+1] += size         
                 else:
                     proposed_swap_price_10 = lp.proposed_swap_prices_10(current_time, size)
                     proposed_swap_delta_10 = (proposed_swap_price_10 - current_swap_price_10) / current_swap_price_10
                     proposed_swap_price_diffs[2 * t + 1] = proposed_swap_delta_10
                     proba_10 = 1. - np.exp(- self.intensities_functions_10[size_index](proposed_swap_delta_10) * dt)
-                    trade_10 = np.random.binomial(1, proba_10)
-                    lp.update_10(trade_10)
-                    if trade_10:
-                        volumes[t+1] += size
+                    if proba_10 > 0:
+                        trade_10 = np.random.binomial(1, proba_10)
+                        lp.update_10(trade_10)
+                        if trade_10:
+                            volumes[t+1] += size
 
             # spatial arbitrage trading
             for index in [0, 1]:
