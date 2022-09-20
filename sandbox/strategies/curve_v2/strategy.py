@@ -108,11 +108,11 @@ class CurveV2(BaseLiquidityProvider):
         self._restore_sc_state(state["sc"])
 
     def proposed_swap_prices_01(self, time, nb_coins_1):
-        self.smart_contract.block.set_timestamp(time / self.dt_sim)
+        self.smart_contract.block.set_timestamp(time / self.dt_sim if self.dt_sim != 1 else time)
         return super().proposed_swap_prices_01(time, nb_coins_1)
 
     def proposed_swap_prices_10(self, time, nb_coins_0):
-        self.smart_contract.block.set_timestamp(time / self.dt_sim)
+        self.smart_contract.block.set_timestamp(time / self.dt_sim if self.dt_sim != 1 else time)
         return super().proposed_swap_prices_10(time, nb_coins_0)
     
     def update_01(self, trade_01):
@@ -147,9 +147,9 @@ class CurveV2(BaseLiquidityProvider):
                 self._restore_sc_state(self.smart_contract_state)
         return True
 
-    def arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=10000):
-            return super().arb_01(time, swap_price_01, relative_cost, fixed_cost, step_ratio=1000)
+    def arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=1000):
+            return super().arb_01(time, swap_price_01, relative_cost, fixed_cost, step_ratio=step_ratio)
 
-    def arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=10000):
-            return super().arb_10(time, swap_price_10, relative_cost, fixed_cost, step_ratio=1000)
+    def arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=1000):
+            return super().arb_10(time, swap_price_10, relative_cost, fixed_cost, step_ratio=step_ratio)
 

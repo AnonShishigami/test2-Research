@@ -32,7 +32,6 @@ class CFMMPowers(BaseLiquidityProvider):
     @staticmethod
     def get_cfmm_powers_amount_out(r_in, w_in, r_out, w_out, amount_out, delta, liquidity):
         return (((liquidity / (r_out - amount_out) ** w_out) ** (1 / w_in) - r_in)) / (1. - delta)
-        return (r_in * ((r_out / (r_out - amount_out)) ** (w_out / w_in) - 1)) / (1. - delta)  # TODO: remove this
 
     def get_cfmm_powers_price(self, r_in, w_in, r_out, w_out, amount_out, delta, *args, **kwargs):
         liquidity = self.compute_liquidity(r_in, w_in, r_out, w_out, *args, **kwargs)
@@ -48,8 +47,8 @@ class CFMMPowers(BaseLiquidityProvider):
         if not success:
             return False
         if trade_01 == 1:
-            self.concentrated_inventories[0] += self.inventories[0] - before[0]
-            self.concentrated_inventories[1] += self.inventories[1] - before[1]
+            for i in range(len(before)):
+                self.concentrated_inventories[i] += self.inventories[i] - before[i]
             self.cash += self.last_cashed_01
         return True 
 
@@ -59,8 +58,8 @@ class CFMMPowers(BaseLiquidityProvider):
         if not success:
             return False
         if trade_10 == 1:
-            self.concentrated_inventories[1] += self.inventories[1] - before[1]
-            self.concentrated_inventories[0] += self.inventories[0] - before[0]
+            for i in range(len(before)):
+                self.concentrated_inventories[i] += self.inventories[i] - before[i]
             self.cash += self.last_cashed_10
         return True
     
