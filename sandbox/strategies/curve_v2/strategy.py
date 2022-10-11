@@ -21,7 +21,7 @@ class CurveV2(BaseLiquidityProvider):
         BaseLiquidityProvider.__init__(self, name, initial_inventories, initial_cash, market, oracle, support_arb)
 
         self.input_precision_factor = input_precision_factor
-        self.initial_prices = [p * self.input_precision_factor for p in initial_prices]
+        self.initial_prices = [p * self.input_precision_factor if self.input_precision_factor != 1 else p for p in initial_prices]
 
         self.asset_0_index = 0
         self.asset_1_index = 1
@@ -41,8 +41,8 @@ class CurveV2(BaseLiquidityProvider):
         )
         self.smart_contract.add_liquidity(
             amounts=[
-                initial_inventories[0] * self.input_precision_factor, 
-                initial_inventories[1] * self.input_precision_factor
+                initial_inventories[0] * self.input_precision_factor if self.input_precision_factor != 1 else initial_inventories[0], 
+                initial_inventories[1] * self.input_precision_factor if self.input_precision_factor != 1 else initial_inventories[1], 
             ],
             min_mint_amount=0,
         )
@@ -70,7 +70,7 @@ class CurveV2(BaseLiquidityProvider):
         if self.initial_prices[self.asset_0_index] == 1:
             unscaled_amount = nb_coins_1
         else:
-            unscaled_amount = nb_coins_1 * self.initial_prices[self.asset_1_index] / self.initial_prices[self.asset_0_index]
+            unscaled_amount = nb_coins_1 * swap_price_01
         self.last_sell_amount_0 = int(unscaled_amount * self.input_precision_factor)
         dy, p = self.simulate_exchange(
             self.asset_0_index, self.asset_1_index, self.last_sell_amount_0,
@@ -83,7 +83,7 @@ class CurveV2(BaseLiquidityProvider):
         if self.initial_prices[self.asset_0_index] == 1:
             unscaled_amount = nb_coins_0
         else:
-            unscaled_amount = nb_coins_0 * self.initial_prices[self.asset_0_index] / self.initial_prices[self.asset_1_index]
+            unscaled_amount = nb_coins_0 * swap_price_10
         self.last_sell_amount_1 = int(unscaled_amount * self.input_precision_factor)
         dy, p = self.simulate_exchange(
             self.asset_1_index, self.asset_0_index, self.last_sell_amount_1,
@@ -93,10 +93,10 @@ class CurveV2(BaseLiquidityProvider):
         return p, 0
 
     def _get_sc_state(self):
-        return copy.deepcopy(self.smart_contract.__dict__)
+        return copy.deepcopy(self.smart_contract)
 
     def _restore_sc_state(self, state):
-        self.smart_contract.__dict__ = copy.deepcopy(state)
+        self.smart_contract = copy.deepcopy(state)
 
     def get_state(self):
         return super().get_state() | {
@@ -108,11 +108,11 @@ class CurveV2(BaseLiquidityProvider):
         self._restore_sc_state(state["sc"])
 
     def proposed_swap_prices_01(self, time, nb_coins_1):
-        self.smart_contract.block.set_timestamp(time / self.dt_sim if self.dt_sim != 1 else time)
+        self.smart_contract.block.set_timestamp(24 * 60 * 60 * time if self.dt_sim != 1 else time)
         return super().proposed_swap_prices_01(time, nb_coins_1)
 
     def proposed_swap_prices_10(self, time, nb_coins_0):
-        self.smart_contract.block.set_timestamp(time / self.dt_sim if self.dt_sim != 1 else time)
+        self.smart_contract.block.set_timestamp(24 * 60 * 60 * time if self.dt_sim != 1 else time)
         return super().proposed_swap_prices_10(time, nb_coins_0)
     
     def update_01(self, trade_01):
