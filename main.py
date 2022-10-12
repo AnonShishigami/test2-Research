@@ -296,7 +296,7 @@ def main():
     initial_inventories = 20. * np.array([1., 1 / init_swap_price_01])
 
     scale = 1. / NUM_TRADING_DAYS_PER_YEAR
-    mu = 0 * scale
+    mu = 0.5 * scale
     sigma = 0.8 * np.sqrt(scale)
     print(f"mu={mu}, sigma={sigma}")
 
@@ -343,7 +343,7 @@ def main():
         "cfmmpowers",
         "cfmmsqrt",
         "PObcf_noarb",
-        "SObcf",
+        "SObcf_noarb",
         "POmyopic_noarb",
         "curvev2_noarb",
         "curvev2",
