@@ -1,4 +1,5 @@
 import numpy as np
+from sandbox.strategies.base.strategy import BaseLiquidityProvider
 
 from sandbox.strategies.cfmm_sqrt.strategy import CFMMSqrt
 
@@ -185,3 +186,8 @@ class SwaapV1(CFMMSqrt):
         r_in_eq = ((price * w_in / w_out * r_out) ** w_out) * r_in ** w_in
         return r_in_eq
     
+    # TODO: remove this and improve inheritance with cfmmpowers and concentrated liquidity feature
+    def _arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=10000, *args, **kwargs):
+        return BaseLiquidityProvider._arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=step_ratio, *args, **kwargs)
+    def _arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=10000, *args, **kwargs):
+        return BaseLiquidityProvider._arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=step_ratio, *args, **kwargs)
