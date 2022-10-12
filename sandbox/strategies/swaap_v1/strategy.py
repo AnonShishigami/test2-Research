@@ -1,9 +1,9 @@
 import numpy as np
 
-from sandbox.strategies.cfmm_powers.strategy import CFMMPowers
+from sandbox.strategies.cfmm_sqrt.strategy import CFMMSqrt
 
 
-class SwaapV1(CFMMPowers):
+class SwaapV1(CFMMSqrt):
 
     def __init__(
         self, name, initial_inventories, initial_cash, market, oracle, support_arb, delta,
@@ -98,7 +98,6 @@ class SwaapV1(CFMMPowers):
                     amount_out,
                     delta,
                 )
-
 
             # will experience shortage phase
             spread_factor = self.get_spread_factor(route=f"{index_in}{index_out}")
