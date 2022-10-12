@@ -24,7 +24,7 @@ NUM_TRADING_DAYS_PER_YEAR = 365.242199
 NUM_SECS_PER_DAY = 24 * 60 * 60
 BPS_PRECISION = 1e-4
 RFR = 0. / 100
-DT_ORACLE = 12 / NUM_SECS_PER_DAY
+DT_ORACLE = 10 / NUM_SECS_PER_DAY
 
 
 def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q):
@@ -273,13 +273,13 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
 
 
 def main():
-    currencies = ['BTC', 'ETH']
-    initial_prices = [40000., 3000.]
+    currencies = ['USD', 'ETH']
+    initial_prices = [1., 1600.]
     init_swap_price_01 = initial_prices[1] / initial_prices[0]
     initial_inventories = 20. * np.array([1., 1 / init_swap_price_01])
 
     scale = 1. / NUM_TRADING_DAYS_PER_YEAR
-    mu = 0.5 * scale
+    mu = 0 * scale
     sigma = 0.8 * np.sqrt(scale)
     print(f"mu={mu}, sigma={sigma}")
 
@@ -293,7 +293,7 @@ def main():
 
     currencies_params = (currencies, init_swap_price_01, mu, sigma)
 
-    sizes = np.array([initial_inventories[0] * 2 / 1000.])
+    sizes = np.array([initial_inventories[0] * 2 / 1600.])
 
     lambda_ = 90
     a = -1.8
@@ -435,10 +435,12 @@ def main():
             else:
                 raise ValueError("Unrecognized typo:", typo)
             param_values = [
-                (5400000, 20000000000000, 5000000, 30000000, 200000000000, 500000000000000, 500000000000000, 5000000000, 600, "1"),
-                (1707629, 11809167828997, 5000000, 30000000, 2000000000000, 500000000000000, 2000000000000000, 5000000000, 600, "2"),
-                (200000000, 100000000000000, 5000000, 45000000, 10000000000, 5000000000000000, 2000000000000000, 5000000000, 2000, "3"),
-                (2500000, 20000000000000, 5000000, 30000000, 200000000000, 500000000000000, 500000000000000, 5000000000, 600, "4"),
+                (5400000, 20000000000000, 5000000, 30000000, 200000000000, 500000000000000, 500000000000000, 5000000000, 600, "1"),  # tricrypto; polygon
+                (1707629, 11809167828997, 5000000, 30000000, 2000000000000, 500000000000000, 2000000000000000, 5000000000, 600, "2"),  # tricrypto; mainnet
+                (540000, 2000000000000, 5000000, 30000000, 2000000000000, 500000000000000, 2000000000000000, 5000000000, 600, "3"), 1  # custom
+                (400000, 145000000000000, 26000000, 45000000, 2000000000000, 230000000000000, 146000000000000, 5000000000, 600, "5"),  # crv-eth; mainnet
+                (200000000, 145000000000000, 26000000, 45000000, 2000000000000, 230000000000000, 146000000000000, 5000000000, 600, "6"),  # crv-usd; mainnet
+                (4000, 1450000000000, 100000000, 150000000, 2000000000000, 230000000000000, 146000000000000, 5000000000, 600, "7"),  # custom
             ]
             param_schema = [
                 "A",
@@ -488,22 +490,14 @@ def main():
             else:
                 raise ValueError("Unrecognized typo:", typo)
             param_values = [
-                (0, 6, 0, 1, 1),  # no spread, no fees
-                (15, 6, 0, 1, 1),  # no spread, only fees
-                (2.5, 6, 1, 5, 4),
-                # (2.5, 4, 2.5, 5, 4),
+                (15, 1, 0, 5, 1),  # no spread
                 (2.5, 3, 5, 5, 4),
                 (2.5, 6, 2.5, 5, 4),
-                (2.5, 6, 5, 5, 4),
-                (5, 6, 5, 5, 4),
-                (5, 6, 4, 5, 4),
-                (5, 4, 5, 5, 4),
-                # (5, 3, 2.5, 5, 4),
-                (7.5, 3, 2.5, 5, 4),
-                # (10, 2, 5, 5, 4),
-                (15, 2, 5, 5, 4),
-                (20, 0.6, 2.5, 5, 4),
-                (20, 1, 2.5, 5, 4),
+                (5, 1, 5, 5, 1),
+                (5, 3, 5, 5, 4),
+                (7.5, 2, 5, 5, 1),
+                (7.5, 1, 5, 5, 1),
+                (7.5, 1, 3, 5, 1),
             ]
             param_schema = [
                 "delta_in_bps",
@@ -542,7 +536,7 @@ def main():
                 color = "olive"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            deltas = [5, 30, 100]
+            deltas = [5, 30, 100, 75]
             jobs = []
             for delta in deltas:
                 lp_params = (typo, initial_inventories, initial_cash, delta)
