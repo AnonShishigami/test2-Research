@@ -104,7 +104,7 @@ class Market:
                         time=current_time,
                         swap_price_01=current_swap_price_01,
                         fixed_cost=0.01,
-                        relative_cost=0.1 / 100
+                        relative_cost=0.075 / 100
                     ) * current_swap_price_01
                     if arb_size > 0:
                         arb_volumes[t+1] += arb_size     
@@ -113,7 +113,7 @@ class Market:
                         time=current_time,
                         swap_price_10=current_swap_price_10,
                         fixed_cost=0.01,
-                        relative_cost=0.1 / 100
+                        relative_cost=0.075 / 100
                     )
                     if arb_size > 0:
                         arb_volumes[t+1] += arb_size
@@ -129,7 +129,7 @@ class Market:
                         time=current_time,
                         swap_price_01=current_swap_price_01,
                         fixed_cost=0.01,
-                        relative_cost=0.1 / 100
+                        relative_cost=0.075 / 100
                     ) * current_swap_price_01
                     if arb_size > 0:
                         arb_volumes[t+1] += arb_size         
@@ -138,7 +138,7 @@ class Market:
                         time=current_time,
                         swap_price_10=current_swap_price_10,
                         fixed_cost=0.01,
-                        relative_cost=0.1 / 100
+                        relative_cost=0.075 / 100
                     )
                     if arb_size > 0:
                         arb_volumes[t+1] += arb_size
