@@ -12,6 +12,7 @@ from sandbox.market import Market
 from sandbox.oracle import BaseOracle, PerfectOracle, LaggedOracle, SparseOracle
 # strategies
 from sandbox.strategies.swaap_v1.strategy import SwaapV1
+from sandbox.strategies.cfmm_powers.strategy import CFMMPowers
 from sandbox.strategies.cfmm_sqrt.strategy import CFMMSqrt
 from sandbox.strategies.cst_delta.strategy import CstDelta
 from sandbox.strategies.curve_v2.strategy import CurveV2
@@ -103,6 +104,22 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             lp = CFMMSqrt(
                 'cfmmsqrt_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
                 BaseOracle(), False, delta * BPS_PRECISION,
+            )
+            return lp
+    elif typo == 'cfmmpowers':
+        def lp_init():
+            delta, weights = extra_params["delta"], extra_params["weights"]
+            lp = CFMMPowers(
+                f"cfmmpowers{delta}w{weights[0]:.2f}", initial_inventories.copy(), initial_cash, market,
+                BaseOracle(), True, weights=weights, delta=delta * BPS_PRECISION, 
+            )
+            return lp
+    elif typo == 'cfmmpowers_noarb':
+        def lp_init():
+            delta, weights = extra_params["delta"], extra_params["weights"]
+            lp = CFMMPowers(
+                f"cfmmpowers{delta}w{weights[0]:.2f}_noarb", initial_inventories.copy(), initial_cash, market,
+                BaseOracle(), False, weights=weights, delta=delta * BPS_PRECISION,
             )
             return lp
     elif typo == 'swaapv1':
@@ -323,8 +340,8 @@ def main():
         "POcst_noarb",
         "swaapv1",
         "swaapv1_noarb",
+        "cfmmpowers",
         "cfmmsqrt",
-        "cfmmsqrt_noarb",
         "PObcf_noarb",
         "SObcf",
         "POmyopic_noarb",
@@ -437,7 +454,7 @@ def main():
             param_values = [
                 (5400000, 20000000000000, 5000000, 30000000, 200000000000, 500000000000000, 500000000000000, 5000000000, 600, "1"),  # tricrypto; polygon
                 (1707629, 11809167828997, 5000000, 30000000, 2000000000000, 500000000000000, 2000000000000000, 5000000000, 600, "2"),  # tricrypto; mainnet
-                (540000, 2000000000000, 5000000, 30000000, 2000000000000, 500000000000000, 2000000000000000, 5000000000, 600, "3"), 1  # custom
+                (540000, 2000000000000, 5000000, 30000000, 2000000000000, 500000000000000, 2000000000000000, 5000000000, 600, "3"),  # custom
                 (400000, 145000000000000, 26000000, 45000000, 2000000000000, 230000000000000, 146000000000000, 5000000000, 600, "5"),  # crv-eth; mainnet
                 (200000000, 145000000000000, 26000000, 45000000, 2000000000000, 230000000000000, 146000000000000, 5000000000, 600, "6"),  # crv-usd; mainnet
                 (4000, 1450000000000, 100000000, 150000000, 2000000000000, 230000000000000, 146000000000000, 5000000000, 600, "7"),  # custom
@@ -536,7 +553,7 @@ def main():
                 color = "olive"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            deltas = [5, 30, 100, 75]
+            deltas = [5, 30, 100]
             jobs = []
             for delta in deltas:
                 lp_params = (typo, initial_inventories, initial_cash, delta)
@@ -554,6 +571,46 @@ def main():
                 volumes.append(volume)
                 arb_volumes.append(arb_volume)
                 colors.append(color)
+
+        elif "cfmmpowers" in typo:
+            if typo == "cfmmpowers":
+                color = "gray"
+            elif typo == "cfmmpowers_noarb":
+                color = "olive"
+            else:
+                raise ValueError("Unrecognized typo:", typo)
+            deltas = [5, 30, 100]
+            token0_weights = [10/100, 25/100, 75/100, 90/100]
+            jobs = []
+            for delta in deltas:
+                for token0_weight in token0_weights:
+                    assert 0 < token0_weight < 1
+                    _weights = [token0_weight, 1 - token0_weight]
+                    _initial_inventories = [2 * r * w for r, w in zip(initial_inventories, _weights)]
+                    lp_params = (
+                        typo, 
+                        _initial_inventories, 
+                        initial_cash, 
+                        {
+                            "delta": delta,
+                            "weights": _weights
+                        }
+                    )
+                    job = Process(target=monte_carlo,
+                                args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
+                    job.start()
+                    jobs.append(job)
+                for job in jobs:
+                    job.join()
+            for delta in deltas:
+                for token0_weight in token0_weights:
+                    name, mean, stdev, volume, arb_volume = q.get()
+                    names.append(name)
+                    means.append(mean)
+                    stdevs.append(stdev)
+                    volumes.append(volume)
+                    arb_volumes.append(arb_volume)
+                    colors.append(color)
             
         elif "PObcf" in typo:
             if typo == "PObcf":

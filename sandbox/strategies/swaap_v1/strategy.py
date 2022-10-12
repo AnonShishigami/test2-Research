@@ -10,7 +10,7 @@ class SwaapV1(CFMMSqrt):
         z, horizon, lookback_calls, lookback_step,
         concentration=1
     ):
-        super().__init__(name, initial_inventories, initial_cash, market, oracle, support_arb, [1, 1], delta, concentration=concentration)
+        super().__init__(name, initial_inventories, initial_cash, market, oracle, support_arb, delta, concentration=concentration)
 
         self.initial_price = None
         self.initial_weights = {
