@@ -47,13 +47,7 @@ class Swap:
         admin_fee: int,
         ma_half_time: int,
         initial_price: int, 
-        
-        # This must be changed for different N_COINS
-        # For example:
-        # N_COINS = 3 -> 1  (10**18 -> 10**18)
-        # N_COINS = 4 -> 10**8  (10**18 -> 10**10)
-        # PRICE_PRECISION_MUL: int = 1  
-        precisions: list[int],
+        precisions: list,
     ):
 
         # Pack A and gamma:
@@ -94,7 +88,7 @@ class Swap:
         self.is_killed = False
         self.balances = [0, 0]
     
-    def _A_gamma(self) -> list[int]:
+    def _A_gamma(self) -> list:
         t1: int = self.future_A_gamma_time
 
         A_gamma_1: int = self.future_A_gamma
@@ -127,7 +121,7 @@ class Swap:
     def gamma(self) -> int:
         return self._A_gamma()[1]
 
-    def _fee(self, xp: list[int]) -> int:
+    def _fee(self, xp: list) -> int:
         """
         f = fee_gamma // (fee_gamma + (1 - K))
         where
@@ -140,16 +134,17 @@ class Swap:
             fee_gamma + 10**18 - (10**18 * N_COINS**N_COINS) * xp[0] // f * xp[1] // f
         )
         return (self.mid_fee * f + self.out_fee * (10**18 - f)) // 10**18
+        # return 1 / 100 * 10**10
 
-    def fee_calc(self, xp: list[int]) -> int:
+    def fee_calc(self, xp: list) -> int:
         return self._fee(xp)
 
     def get_xcp(self, D: int) -> int:
-        x: list[int] = [D // N_COINS, D * PRECISION // (self.price_scale * N_COINS)]
+        x: list = [D // N_COINS, D * PRECISION // (self.price_scale * N_COINS)]
         return curve_v2_math.geometric_mean(x, True)
 
     @call_by_value
-    def tweak_price(self, A_gamma: list[int],_xp: list[int], p_i: int, new_D: int):
+    def tweak_price(self, A_gamma: list,_xp: list, p_i: int, new_D: int):
         price_oracle: int = self.price_oracle
         last_prices: int = self.last_prices
         price_scale: int = self.price_scale
@@ -174,7 +169,7 @@ class Swap:
 
         else:
             # calculate real prices
-            __xp: list[int] = shallow_array_copy(_xp)
+            __xp: list = shallow_array_copy(_xp)
             dx_price: int = __xp[0] // 10**6
             __xp[0] += dx_price
             last_prices = price_scale * dx_price // (_xp[1] - curve_v2_math.newton_y(A_gamma[0], A_gamma[1], __xp, D_unadjusted, 1))
@@ -186,7 +181,7 @@ class Swap:
         old_virtual_price: int = self.virtual_price
 
         # Update profit numbers without price adjustment first
-        xp: list[int] = [D_unadjusted // N_COINS, D_unadjusted * PRECISION // (N_COINS * price_scale)]
+        xp: list = [D_unadjusted // N_COINS, D_unadjusted * PRECISION // (N_COINS * price_scale)]
         xcp_profit: int = 10**18
         virtual_price: int = 10**18
 
@@ -262,7 +257,7 @@ class Swap:
         assert j < N_COINS  # dev: coin index out of range
         assert dx > 0  # dev: do not exchange 0 coins
 
-        A_gamma: list[int] = self._A_gamma()
+        A_gamma: list = self._A_gamma()
         xp: int[N_COINS] = shallow_array_copy(self.balances)
         p: int = 0
         dy: int = 0
@@ -329,19 +324,19 @@ class Swap:
         return dy
 
     @call_by_value
-    def add_liquidity(self, amounts: list[int], min_mint_amount: int) -> int:
+    def add_liquidity(self, amounts: list, min_mint_amount: int) -> int:
         assert not self.is_killed  # dev: the pool is killed
 
-        A_gamma: list[int] = self._A_gamma()
+        A_gamma: list = self._A_gamma()
 
-        xp: list[int] = shallow_array_copy(self.balances)
-        amountsp: list[int] = empty(int, N_COINS)
-        xx: list[int] = empty(int, N_COINS)
+        xp: list = shallow_array_copy(self.balances)
+        amountsp: list = empty(int, N_COINS)
+        xx: list = empty(int, N_COINS)
         d_token: int = 0
         d_token_fee: int = 0
         old_D: int = 0
 
-        xp_old: list[int] = shallow_array_copy(xp)
+        xp_old: list = shallow_array_copy(xp)
 
         for i in range(N_COINS):
             bal: int = xp[i] + amounts[i]
@@ -420,9 +415,9 @@ class Swap:
         assert j < N_COINS  # dev: coin index out of range
 
         price_scale: int = self.price_scale * self.precisions[1]
-        xp: list[int] = shallow_array_copy(self.balances)
+        xp: list = shallow_array_copy(self.balances)
 
-        A_gamma: list[int] = self._A_gamma()
+        A_gamma: list = self._A_gamma()
         D: int = self.D
         if self.future_A_gamma_time > 0:
             D = curve_v2_math.newton_D(A_gamma[0], A_gamma[1], self.xp())
@@ -441,11 +436,11 @@ class Swap:
 
         return dy
 
-    def xp(self) -> list[int]:
+    def xp(self) -> list:
         return [self.balances[0] * self.precisions[0],
                 curve_v2_math.unsafe_div(self.balances[1] * self.precisions[1] * self.price_scale, PRECISION)]
 
-    def _calc_token_fee(self, amounts: list[int], xp: list[int]) -> int:
+    def _calc_token_fee(self, amounts: list, xp: list) -> int:
         # fee = sum(amounts_i - avg(amounts)) * fee' // sum(amounts)
         fee: int = self._fee(xp) * N_COINS // (4 * (N_COINS-1))
         S: int = 0

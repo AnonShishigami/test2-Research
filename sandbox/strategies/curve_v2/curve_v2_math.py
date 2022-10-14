@@ -12,11 +12,11 @@ from sandbox.strategies.curve_v2.curve_v2_config import (
 
 
 @call_by_value
-def sort_function(A0: list[int]) -> list[int]:
+def sort_function(A0: list) -> list:
     """
     Insertion sort from high to low
     """
-    A: list[int] = [v for v in A0]
+    A: list = [v for v in A0]
     for i in range(1, N_COINS):
         x: int = A[i]
         cur: int = i
@@ -33,11 +33,11 @@ def sort_function(A0: list[int]) -> list[int]:
 
 
 @call_by_value
-def geometric_mean(unsorted_x: list[int], sort: bool) -> int:
+def geometric_mean(unsorted_x: list, sort: bool) -> int:
     """
     (x[0] * x[1] * ...) ** (1/N)
     """
-    x: list[int] =shallow_array_copy(unsorted_x)
+    x: list = shallow_array_copy(unsorted_x)
     if sort and x[0] < x[1]:
         x = [unsorted_x[1], unsorted_x[0]]
     D: int = x[0]
@@ -60,7 +60,7 @@ def geometric_mean(unsorted_x: list[int], sort: bool) -> int:
 
 
 @call_by_value
-def newton_D(ANN: int, gamma: int, x_unsorted: list[int]) -> int:
+def newton_D(ANN: int, gamma: int, x_unsorted: list) -> int:
     """
     Finding the invariant using Newton method.
     ANN is higher by the factor A_MULTIPLIER
@@ -73,7 +73,7 @@ def newton_D(ANN: int, gamma: int, x_unsorted: list[int]) -> int:
     assert gamma > MIN_GAMMA - 1 and gamma < MAX_GAMMA + 1  # dev: unsafe values gamma
 
     # Initial value of invariant D is that for constant-product invariant
-    x: list[int] = shallow_array_copy(x_unsorted)
+    x: list = shallow_array_copy(x_unsorted)
     if x[0] < x[1]:
         x = [x_unsorted[1], x_unsorted[0]]
 
@@ -135,7 +135,7 @@ def newton_D(ANN: int, gamma: int, x_unsorted: list[int]) -> int:
 
 
 @call_by_value
-def newton_y(ANN: int, gamma: int, x: list[int], D: int, i: int) -> int:
+def newton_y(ANN: int, gamma: int, x: list, D: int, i: int) -> int:
     """
     Calculating x[i] given other balances x[0..N_COINS-1] and invariant D
     ANN = A * N**N
@@ -153,7 +153,7 @@ def newton_y(ANN: int, gamma: int, x: list[int], D: int, i: int) -> int:
     # frac = x_j * 1e18 // D => frac = K0_i // N_COINS
     assert (K0_i > 10**16*N_COINS - 1) and (K0_i < 10**20*N_COINS + 1)  # dev: unsafe values x[i]
 
-    # x_sorted: list[int] = x
+    # x_sorted: list = x
     # x_sorted[i] = 0
     # x_sorted = sort(x_sorted)  # From high to low
     # x[not i] instead of x_sorted since x_soted has only 1 element
