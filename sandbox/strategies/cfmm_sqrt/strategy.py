@@ -61,6 +61,6 @@ class CFMMSqrt(CFMMPowers):
         self.concentrated_inventories = state["concentrated_inventories"]
 
     def get_state(self):
-        return super().get_state() | {
-            "concentrated_inventories": [float(v) for v in self.concentrated_inventories],
-        }
+        s = super().get_state()
+        s["concentrated_inventories"] = [float(v) for v in self.concentrated_inventories]
+        return s
