@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 
 
@@ -137,6 +139,6 @@ class BaseLiquidityProvider:
 
     def get_state(self):
         return {
-            "inventories": [float(v) for v in self.inventories],
+            "inventories": copy.deepcopy([float(v) for v in self.inventories]),
             "cash": float(self.cash),
         }

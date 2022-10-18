@@ -33,6 +33,12 @@ class CFMMPowers(BaseLiquidityProvider):
 
     def get_cfmm_powers_price(self, r_in, w_in, r_out, w_out, amount_out, delta, *args, **kwargs):
         liquidity = self.compute_liquidity(r_in, w_in, r_out, w_out, *args, **kwargs)
+        # print(r_in, w_in, r_out, w_out)
+        # print("liquidity:", liquidity)
+        # print("r:", self.get_cfmm_powers_amount_out(r_in, w_in, r_out, w_out, amount_out, delta, liquidity))
+        # print("amount_out:", amount_out)
+        # print("delta:", delta)
+        # sys.exit()
         return self.get_cfmm_powers_amount_out(r_in, w_in, r_out, w_out, amount_out, delta, liquidity) / amount_out
 
     @staticmethod

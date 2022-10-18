@@ -42,7 +42,7 @@ class CurveV2(BaseLiquidityProvider):
         self.smart_contract.add_liquidity(
             amounts=[
                 initial_inventories[0] * self.input_precision_factor if self.input_precision_factor != 1 else initial_inventories[0], 
-                initial_inventories[1] * self.input_precision_factor if self.input_precision_factor != 1 else initial_inventories[1], 
+                initial_inventories[1] * self.input_precision_factor if self.input_precision_factor != 1 else initial_inventories[1] 
             ],
             min_mint_amount=0,
         )
@@ -51,7 +51,6 @@ class CurveV2(BaseLiquidityProvider):
         self.smart_contract_state = None
 
     def process_exchange(self, sell_idx, buy_idx, sell_amount):
-        self.smart_contract_state = self._get_sc_state()
         dy = self.smart_contract.exchange(
             sell_idx, buy_idx, sell_amount, 0,
         )
@@ -109,10 +108,12 @@ class CurveV2(BaseLiquidityProvider):
 
     def proposed_swap_prices_01(self, time, nb_coins_1):
         self.smart_contract.block.set_timestamp(24 * 60 * 60 * time if self.dt_sim != 1 else time)
+        self.smart_contract_state = self._get_sc_state()
         return super().proposed_swap_prices_01(time, nb_coins_1)
 
     def proposed_swap_prices_10(self, time, nb_coins_0):
         self.smart_contract.block.set_timestamp(24 * 60 * 60 * time if self.dt_sim != 1 else time)
+        self.smart_contract_state = self._get_sc_state()
         return super().proposed_swap_prices_10(time, nb_coins_0)
     
     def update_01(self, trade_01):
@@ -120,15 +121,15 @@ class CurveV2(BaseLiquidityProvider):
             try:
                 dy = self.process_exchange(self.asset_0_index, self.asset_1_index, self.last_sell_amount_0) / curve_v2_swap.PRECISION
                 assert dy == self.last_requested_nb_coins_1
+
                 self.inventories[0] += self.last_requested_nb_coins_1 * self.last_answer_01 - self.last_cashed_01
                 self.inventories[1] -= self.last_requested_nb_coins_1
+
                 self.cash += self.last_cashed_01
             except Exception as e:
                 self._restore_sc_state(self.smart_contract_state)
                 return False
-        else:
-            if self.smart_contract_state:
-                self._restore_sc_state(self.smart_contract_state)
+        
         return True
 
     def update_10(self, trade_10):
@@ -136,15 +137,15 @@ class CurveV2(BaseLiquidityProvider):
             try:
                 dy = self.process_exchange(self.asset_1_index, self.asset_0_index, self.last_sell_amount_1) / curve_v2_swap.PRECISION
                 assert dy == self.last_requested_nb_coins_0
+
                 self.inventories[1] += self.last_requested_nb_coins_0 * self.last_answer_10
                 self.inventories[0] -= self.last_requested_nb_coins_0 - self.last_cashed_10
+
                 self.cash += self.last_cashed_10
             except Exception as e:
                 self._restore_sc_state(self.smart_contract_state)
                 return False
-        else:
-            if self.smart_contract_state:
-                self._restore_sc_state(self.smart_contract_state)
+                
         return True
 
     def arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=1000):
