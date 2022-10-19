@@ -41,8 +41,8 @@ class CurveV2(BaseLiquidityProvider):
         )
         self.smart_contract.add_liquidity(
             amounts=[
-                initial_inventories[0] * self.input_precision_factor if self.input_precision_factor != 1 else initial_inventories[0], 
-                initial_inventories[1] * self.input_precision_factor if self.input_precision_factor != 1 else initial_inventories[1] 
+                int(initial_inventories[0] * self.input_precision_factor if self.input_precision_factor != 1 else initial_inventories[0]), 
+                int(initial_inventories[1] * self.input_precision_factor if self.input_precision_factor != 1 else initial_inventories[1])
             ],
             min_mint_amount=0,
         )
