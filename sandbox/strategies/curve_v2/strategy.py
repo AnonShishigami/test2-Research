@@ -70,7 +70,7 @@ class CurveV2(BaseLiquidityProvider):
             unscaled_amount = nb_coins_1
         else:
             unscaled_amount = nb_coins_1 * swap_price_01
-        self.last_sell_amount_0 = int(unscaled_amount * self.input_precision_factor)
+        self.last_sell_amount_0 = int(unscaled_amount * self.input_precision_factor if self.input_precision_factor != 1 else unscaled_amount)
         dy, p = self.simulate_exchange(
             self.asset_0_index, self.asset_1_index, self.last_sell_amount_0,
         )
@@ -83,7 +83,7 @@ class CurveV2(BaseLiquidityProvider):
             unscaled_amount = nb_coins_0
         else:
             unscaled_amount = nb_coins_0 * swap_price_10
-        self.last_sell_amount_1 = int(unscaled_amount * self.input_precision_factor)
+        self.last_sell_amount_1 = int(unscaled_amount * self.input_precision_factor if self.input_precision_factor != 1 else unscaled_amount)
         dy, p = self.simulate_exchange(
             self.asset_1_index, self.asset_0_index, self.last_sell_amount_1,
         )
