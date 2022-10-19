@@ -66,7 +66,7 @@ class CurveV2(BaseLiquidityProvider):
             return 0, np.inf
 
     def pricing_function_01(self, nb_coins_1, swap_price_01):
-        if self.initial_prices[self.asset_0_index] == 1:
+        if swap_price_01 == 1:
             unscaled_amount = nb_coins_1
         else:
             unscaled_amount = nb_coins_1 * swap_price_01
@@ -79,7 +79,7 @@ class CurveV2(BaseLiquidityProvider):
         return p, 0
 
     def pricing_function_10(self, nb_coins_0, swap_price_10):
-        if self.initial_prices[self.asset_0_index] == 1:
+        if swap_price_10 == 1:
             unscaled_amount = nb_coins_0
         else:
             unscaled_amount = nb_coins_0 * swap_price_10

@@ -51,7 +51,7 @@ class TestCurveV2(StrategyTestTemplate, unittest.TestCase):
             admin_fee=admin_fee, ma_half_time=ma_half_time,
 
             initial_cash=0, market=None, oracle=StrategyTestOracle(), support_arb=False, 
-            initial_prices=[1, 1],  # hackish way of faking buy quote (to comply with Curve's interface) with sell quote (to comply with this tool's interface)
+            initial_prices=[1, 1],  # will be overwritten right below
             precisions=precisions,
             dt_sim=1,
             input_precision_factor=1
