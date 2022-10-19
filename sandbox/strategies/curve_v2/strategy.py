@@ -15,7 +15,7 @@ class CurveV2(BaseLiquidityProvider):
         mid_fee, out_fee, allowed_extra_profit,
         fee_gamma, adjustment_step,
         admin_fee, ma_half_time,
-        precisions=(1, 1, 1), input_precision_factor=curve_v2_swap.PRECISION
+        precisions=(1, 1), input_precision_factor=curve_v2_swap.PRECISION
     ): 
         
         BaseLiquidityProvider.__init__(self, name, initial_inventories, initial_cash, market, oracle, support_arb)
