@@ -249,7 +249,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             gamma = extra_params
             lp = BestClosedForm(
-                'PObcf_noarb%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
+                'SObcf_noarb%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
                 LaggedOracle(DT_ORACLE), False, gamma,
             )
             return lp
