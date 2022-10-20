@@ -67,12 +67,12 @@ class BaseLiquidityProvider:
     def mtm_value(self, swap_price_01):
         return self.cash + self.inventories[0] + swap_price_01 * self.inventories[1]
 
-    def arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=10000, *args, **kwargs):
+    def arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
         if not self.support_arb:
             return 0
         return self._arb_01(time, swap_price_01, relative_cost, fixed_cost, step_ratio, *args, **kwargs)
 
-    def arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=10000, *args, **kwargs):
+    def arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
         if not self.support_arb:
             return 0
         return self._arb_10(time, swap_price_10, relative_cost, fixed_cost, step_ratio, *args, **kwargs)

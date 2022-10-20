@@ -148,9 +148,9 @@ class CurveV2(BaseLiquidityProvider):
                 
         return True
 
-    def arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=1000):
+    def arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=10000):
             return super().arb_01(time, swap_price_01, relative_cost, fixed_cost, step_ratio=step_ratio)
 
-    def arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=1000):
+    def arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=10000):
             return super().arb_10(time, swap_price_10, relative_cost, fixed_cost, step_ratio=step_ratio)
 
