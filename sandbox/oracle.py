@@ -13,7 +13,7 @@ class BaseOracle:
         self.times.append(time)
         self.prices.append(price)
         self.length += 1
-        self.current_time = self.current_time
+        self.current_time = time
 
     def reset(self):
         self.times = []
