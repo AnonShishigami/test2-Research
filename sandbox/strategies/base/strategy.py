@@ -28,20 +28,20 @@ class BaseLiquidityProvider:
     def pricing_function_10(self, nb_coins_0, swap_price_10):
         return np.inf, 0.
 
-    def proposed_swap_prices_01(self, time, nb_coins_1):
+    def proposed_swap_prices_01(self, nb_coins_1):
 
         self.last_requested_nb_coins_1 = nb_coins_1
-        swap_price_01 = self.oracle.get(time)
+        swap_price_01 = self.oracle.get()
         answer, cashed = self.pricing_function_01(nb_coins_1, swap_price_01)
         self.last_answer_01 = answer
         self.last_cashed_01 = cashed
 
         return answer
 
-    def proposed_swap_prices_10(self, time, nb_coins_0):
+    def proposed_swap_prices_10(self, nb_coins_0):
 
         self.last_requested_nb_coins_0 = nb_coins_0
-        swap_price_10 = 1. / self.oracle.get(time)
+        swap_price_10 = 1. / self.oracle.get()
         answer, cashed = self.pricing_function_10(nb_coins_0, swap_price_10)
         self.last_answer_10 = answer
         self.last_cashed_10 = cashed
@@ -67,17 +67,17 @@ class BaseLiquidityProvider:
     def mtm_value(self, swap_price_01):
         return self.cash + self.inventories[0] + swap_price_01 * self.inventories[1]
 
-    def arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
+    def arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
         if not self.support_arb:
             return 0
-        return self._arb_01(time, swap_price_01, relative_cost, fixed_cost, step_ratio, *args, **kwargs)
+        return self._arb_01(swap_price_01, relative_cost, fixed_cost, step_ratio, *args, **kwargs)
 
-    def arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
+    def arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
         if not self.support_arb:
             return 0
-        return self._arb_10(time, swap_price_10, relative_cost, fixed_cost, step_ratio, *args, **kwargs)
+        return self._arb_10(swap_price_10, relative_cost, fixed_cost, step_ratio, *args, **kwargs)
 
-    def _arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio, *args, **kwargs):
+    def _arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio, *args, **kwargs):
 
         state = self.get_state()
 
@@ -86,7 +86,7 @@ class BaseLiquidityProvider:
         ko = 0
         ok = 0
         while ko < 4 and ok < 100:
-            proposed_swap_price_01 = self.proposed_swap_prices_01(time, s)
+            proposed_swap_price_01 = self.proposed_swap_prices_01(s)
             if proposed_swap_price_01 * (1 + relative_cost) > swap_price_01:
                 s /= 2
                 ko += 1
@@ -99,13 +99,13 @@ class BaseLiquidityProvider:
 
         if amount:
             self.restore_state(state)
-            proposed_swap_price_01 = self.proposed_swap_prices_01(time, amount)
+            proposed_swap_price_01 = self.proposed_swap_prices_01(amount)
             if proposed_swap_price_01 * (1 + relative_cost) <= swap_price_01:
                 self.update_01(1)
 
         return amount
 
-    def _arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio, *args, **kwargs):
+    def _arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio, *args, **kwargs):
 
         state = self.get_state()
 
@@ -114,7 +114,7 @@ class BaseLiquidityProvider:
         ko = 0
         ok = 0
         while ko < 4 and ok < 100:
-            proposed_swap_price_10 = self.proposed_swap_prices_10(time, s)
+            proposed_swap_price_10 = self.proposed_swap_prices_10(s)
             if proposed_swap_price_10 * (1 + relative_cost) > swap_price_10:
                 s /= 2
                 ko += 1
@@ -127,7 +127,7 @@ class BaseLiquidityProvider:
 
         if amount:
             self.restore_state(state)
-            proposed_swap_price_10 = self.proposed_swap_prices_10(time, amount)
+            proposed_swap_price_10 = self.proposed_swap_prices_10(amount)
             if proposed_swap_price_10 * (1 + relative_cost) <= swap_price_10:
                 self.update_10(1)
 

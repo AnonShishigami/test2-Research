@@ -76,7 +76,7 @@ class Market:
                 size_index = index // 2
                 size = self.sizes[size_index]
                 if side == 0:
-                    proposed_swap_price_01 = lp.proposed_swap_prices_01(current_time, size * current_swap_price_10)
+                    proposed_swap_price_01 = lp.proposed_swap_prices_01(size * current_swap_price_10)
                     proposed_swap_delta_01 = (proposed_swap_price_01 - current_swap_price_01) / current_swap_price_01
                     proposed_swap_price_diffs[2 * t] = proposed_swap_delta_01
                     proba_01 = 1. - np.exp(- self.intensities_functions_01[size_index](proposed_swap_delta_01) * dt)
@@ -86,7 +86,7 @@ class Market:
                         if trade_01:
                             volumes[t+1] += size         
                 else:
-                    proposed_swap_price_10 = lp.proposed_swap_prices_10(current_time, size)
+                    proposed_swap_price_10 = lp.proposed_swap_prices_10(size)
                     proposed_swap_delta_10 = (proposed_swap_price_10 - current_swap_price_10) / current_swap_price_10
                     proposed_swap_price_diffs[2 * t + 1] = proposed_swap_delta_10
                     proba_10 = 1. - np.exp(- self.intensities_functions_10[size_index](proposed_swap_delta_10) * dt)
@@ -101,7 +101,6 @@ class Market:
                 side = index % 2
                 if side == 0:
                     arb_size = lp.arb_01(
-                        time=current_time,
                         swap_price_01=current_swap_price_01,
                         fixed_cost=0.01,
                         relative_cost=0.075 / 100
@@ -110,7 +109,6 @@ class Market:
                         arb_volumes[t+1] += arb_size     
                 else:
                     arb_size = lp.arb_10(
-                        time=current_time,
                         swap_price_10=current_swap_price_10,
                         fixed_cost=0.01,
                         relative_cost=0.075 / 100
@@ -126,7 +124,6 @@ class Market:
                 side = index % 2
                 if side == 0:
                     arb_size = lp.arb_01(
-                        time=current_time,
                         swap_price_01=current_swap_price_01,
                         fixed_cost=0.01,
                         relative_cost=0.075 / 100
@@ -135,7 +132,6 @@ class Market:
                         arb_volumes[t+1] += arb_size         
                 else:
                     arb_size = lp.arb_10(
-                        time=current_time,
                         swap_price_10=current_swap_price_10,
                         fixed_cost=0.01,
                         relative_cost=0.075 / 100

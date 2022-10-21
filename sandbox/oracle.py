@@ -7,18 +7,20 @@ class BaseOracle:
         self.times = []
         self.prices = []
         self.length = 0
+        self.current_time = 0
 
     def update(self, time, price):
         self.times.append(time)
         self.prices.append(price)
         self.length += 1
+        self.current_time = self.current_time
 
     def reset(self):
         self.times = []
         self.prices = []
         self.length = 0
 
-    def get(self, current_time):
+    def get(self):
         return np.nan
 
     def get_last_timestamped_prices(self, lookback_calls, route, lookback_step=1):
@@ -35,10 +37,10 @@ class BaseOracle:
 
 class PerfectOracle(BaseOracle):
 
-    def __init__(self, ):
+    def __init__(self):
         super().__init__()
 
-    def get(self, current_time):
+    def get(self):
         return self.prices[-1]
 
 
@@ -48,9 +50,9 @@ class LaggedOracle(BaseOracle):
         super().__init__()
         self.lag = lag
 
-    def get(self, current_time):
+    def get(self):
         t = 0
-        while (self.times[self.length-1-t] > current_time - self.lag) and (t < self.length-1):
+        while (self.times[self.length-1-t] > self.current_time - self.lag) and (t < self.length-1):
             t += 1
         return self.prices[self.length-1-t]
 

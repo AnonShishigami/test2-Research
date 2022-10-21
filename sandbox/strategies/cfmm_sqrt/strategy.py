@@ -14,23 +14,23 @@ class CFMMSqrt(CFMMPowers):
     def _get_pricing_inventories(self):
         return self.concentrated_inventories
 
-    def _arb_01(self, time, swap_price_01, relative_cost, fixed_cost, *args, **kwargs):
+    def _arb_01(self, swap_price_01, relative_cost, fixed_cost, *args, **kwargs):
         pricing_inventories = self._get_pricing_inventories()
         amount = pricing_inventories[1] - np.sqrt(
             pricing_inventories[0] * pricing_inventories[1] / (swap_price_01 / (1 + relative_cost) * (1 - self.delta))
         )
         if amount > 0:
-            self.proposed_swap_prices_01(time, amount)
+            self.proposed_swap_prices_01(amount)
             self.update_01(1)
         return amount
 
-    def _arb_10(self, time, swap_price_10, relative_cost, fixed_cost, *args, **kwargs):
+    def _arb_10(self, swap_price_10, relative_cost, fixed_cost, *args, **kwargs):
         pricing_inventories = self._get_pricing_inventories()
         amount = pricing_inventories[0] - np.sqrt(
             pricing_inventories[0] * pricing_inventories[1] / (swap_price_10 / (1 + relative_cost) * (1 - self.delta))
         )
         if amount > 0:
-            self.proposed_swap_prices_10(time, amount)
+            self.proposed_swap_prices_10(amount)
             self.update_10(1)
         return amount
 

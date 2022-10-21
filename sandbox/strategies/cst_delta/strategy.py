@@ -21,18 +21,18 @@ class CstDelta(BaseLiquidityProvider):
         else:
             return swap_price_10 * (1. + self.delta), self.delta * nb_coins_0
 
-    def _arb_01(self, time, swap_price_01, relative_cost, fixed_cost, *args, **kwargs):
-        if self.oracle.get(time) * (1 + relative_cost) > swap_price_01:
+    def _arb_01(self, swap_price_01, relative_cost, fixed_cost, *args, **kwargs):
+        if self.oracle.get() * (1 + relative_cost) > swap_price_01:
             return 0
         amount = self.inventories[1]
-        self.proposed_swap_prices_01(time, amount)
+        self.proposed_swap_prices_01(amount)
         self.update_01(1)
         return amount
 
-    def _arb_10(self, time, swap_price_10, relative_cost, fixed_cost, *args, **kwargs):
-        if 1. / self.oracle.get(time) * (1 + relative_cost) > swap_price_10:
+    def _arb_10(self, timswap_price_10, relative_cost, fixed_cost, *args, **kwargs):
+        if 1. / self.oracle.get() * (1 + relative_cost) > swap_price_10:
             return 0
         amount = self.inventories[0]
-        self.proposed_swap_prices_10(time, amount)
+        self.proposed_swap_prices_10(amount)
         self.update_10(1)
         return amount

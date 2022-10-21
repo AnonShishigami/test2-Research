@@ -27,19 +27,19 @@ class SwaapV1(CFMMSqrt):
 
     def set__init__price(self, time):
         self.initial_price = {
-            1: self.oracle.get(time)
+            1: self.oracle.get()
         }
         self.initial_price[0] = 1. / self.initial_price[1]
 
-    def proposed_swap_prices_01(self, time, nb_coins_1):
+    def proposed_swap_prices_01(self, nb_coins_1):
         if self.initial_price is None:
-            self.set__init__price(time)
-        return super().proposed_swap_prices_01(time, nb_coins_1)
+            self.set__init__price(self.oracle.current_time)
+        return super().proposed_swap_prices_01(nb_coins_1)
 
-    def proposed_swap_prices_10(self, time, nb_coins_0):
+    def proposed_swap_prices_10(self, nb_coins_0):
         if self.initial_price is None:
-            self.set__init__price(time)
-        return super().proposed_swap_prices_10(time, nb_coins_0)
+            self.set__init__price(self.oracle.current_time)
+        return super().proposed_swap_prices_10(nb_coins_0)
 
     def pricing_function_01(self, nb_coins_1, swap_price_01):
         return self.pricing_function_wrapper(
@@ -187,7 +187,7 @@ class SwaapV1(CFMMSqrt):
         return r_in_eq
     
     # TODO: remove this and improve inheritance with cfmmpowers and concentrated liquidity feature
-    def _arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
-        return BaseLiquidityProvider._arb_01(self, time, swap_price_01, relative_cost, fixed_cost, step_ratio=step_ratio, *args, **kwargs)
-    def _arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
-        return BaseLiquidityProvider._arb_10(self, time, swap_price_10, relative_cost, fixed_cost, step_ratio=step_ratio, *args, **kwargs)
+    def _arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
+        return BaseLiquidityProvider._arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio=step_ratio, *args, **kwargs)
+    def _arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
+        return BaseLiquidityProvider._arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio=step_ratio, *args, **kwargs)
