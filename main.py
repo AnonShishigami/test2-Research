@@ -148,7 +148,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             lookback_step = extra_params["lookback_step"]
             lp = SwaapV1(
                 f'mmm_{name}_noarb', initial_inventories.copy(), initial_cash, market,
-                PerfectOracle(), False, delta,
+                SparseOracle(DT_ORACLE), False, delta,
                 z, horizon, lookback_calls, lookback_step,
             )
             return lp
