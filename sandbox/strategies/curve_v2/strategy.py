@@ -106,15 +106,15 @@ class CurveV2(BaseLiquidityProvider):
         super().restore_state(state)
         self._restore_sc_state(state["sc"])
 
-    def proposed_swap_prices_01(self, time, nb_coins_1):
-        self.smart_contract.block.set_timestamp(24 * 60 * 60 * time if self.dt_sim != 1 else time)
+    def proposed_swap_prices_01(self, nb_coins_1):
+        self.smart_contract.block.set_timestamp(24 * 60 * 60 * self.oracle.current_time if self.dt_sim != 1 else self.oracle.current_time)
         self.smart_contract_state = self._get_sc_state()
-        return super().proposed_swap_prices_01(time, nb_coins_1)
+        return super().proposed_swap_prices_01(nb_coins_1)
 
-    def proposed_swap_prices_10(self, time, nb_coins_0):
-        self.smart_contract.block.set_timestamp(24 * 60 * 60 * time if self.dt_sim != 1 else time)
+    def proposed_swap_prices_10(self, nb_coins_0):
+        self.smart_contract.block.set_timestamp(24 * 60 * 60 * self.oracle.current_time if self.dt_sim != 1 else self.oracle.current_time)
         self.smart_contract_state = self._get_sc_state()
-        return super().proposed_swap_prices_10(time, nb_coins_0)
+        return super().proposed_swap_prices_10(nb_coins_0)
     
     def update_01(self, trade_01):
         if trade_01 == 1:
