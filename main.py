@@ -296,8 +296,8 @@ def main():
     initial_inventories = 20. * np.array([1., 1 / init_swap_price_01])
 
     scale = 1. / NUM_TRADING_DAYS_PER_YEAR
-    mu = 0.5 * scale
-    sigma = 0.8 * np.sqrt(scale)
+    mu = 0 * scale
+    sigma = 0.6 * np.sqrt(scale)
     print(f"mu={mu}, sigma={sigma}")
 
     dt_norm_factor = 1. / NUM_SECS_PER_DAY
@@ -310,9 +310,9 @@ def main():
 
     currencies_params = (currencies, init_swap_price_01, mu, sigma)
 
-    sizes = np.array([initial_inventories[0] * 2 / 1600.])
+    sizes = np.array([initial_inventories[0] * 2 / 12000.])
 
-    lambda_ = 90
+    lambda_ = 700.
     a = -1.8
     b = 1300
 
@@ -341,6 +341,7 @@ def main():
         "swaapv1",
         "swaapv1_noarb",
         "cfmmpowers",
+        "cfmmsqrt_noarb",
         "cfmmsqrt",
         "PObcf_noarb",
         "SObcf_noarb",
@@ -358,7 +359,7 @@ def main():
             else:
                 raise ValueError("Unrecognized typo:", typo)
             jobs = []
-            deltas = [5, 15, 30]
+            deltas = range(1, 25)
             for delta in deltas:
                 lp_params = (typo, initial_inventories, initial_cash, delta)
                 job = Process(target=monte_carlo, args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
@@ -552,7 +553,7 @@ def main():
                 color = "olive"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            deltas = [5, 30, 100]
+            deltas = range(1, 30)
             jobs = []
             for delta in deltas:
                 lp_params = (typo, initial_inventories, initial_cash, delta)
