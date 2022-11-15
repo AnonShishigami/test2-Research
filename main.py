@@ -140,7 +140,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     elif typo == 'swaapv1_noarb':
         def lp_init():
             name = extra_params['name']
-            delta_in_bps = extra_params["delta_in_bps"] * BPS_PRECISION
+            delta_in_bps = extra_params["delta_in_bps"]
             delta = delta_in_bps * BPS_PRECISION
             z = extra_params["z"]
             horizon = extra_params["horizon_in_dt"] / NUM_SECS_PER_DAY
