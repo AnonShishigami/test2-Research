@@ -131,10 +131,12 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             horizon = extra_params["horizon_in_dt"] / NUM_SECS_PER_DAY
             lookback_calls = extra_params["lookback_calls"]
             lookback_step = extra_params["lookback_step"]
+            concentration = extra_params["concentration"]
             lp = SwaapV1(
                 f'mmm_{name}', initial_inventories.copy(), initial_cash, market,
                 SparseOracle(DT_ORACLE), True, delta,
                 z, horizon, lookback_calls, lookback_step,
+                concentration=concentration
             )
             return lp
     elif typo == 'swaapv1_noarb':
@@ -250,7 +252,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             gamma = extra_params
             lp = BestClosedForm(
                 'SObcf_noarb%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
-                LaggedOracle(DT_ORACLE), False, gamma,
+                SparseOracle(DT_ORACLE), False, gamma,
             )
             return lp
 
@@ -293,11 +295,11 @@ def main():
     currencies = ['USD', 'ETH']
     initial_prices = [1., 1600.]
     init_swap_price_01 = initial_prices[1] / initial_prices[0]
-    initial_inventories = 20. * np.array([1., 1 / init_swap_price_01])
+    initial_inventories = 1000000. * np.array([1., 1 / init_swap_price_01])
 
     scale = 1. / NUM_TRADING_DAYS_PER_YEAR
-    mu = 0 * scale
-    sigma = 0.6 * np.sqrt(scale)
+    mu = 0.5 * scale
+    sigma = 0.8 * np.sqrt(scale)
     print(f"mu={mu}, sigma={sigma}")
 
     dt_norm_factor = 1. / NUM_SECS_PER_DAY
@@ -310,9 +312,9 @@ def main():
 
     currencies_params = (currencies, init_swap_price_01, mu, sigma)
 
-    sizes = np.array([initial_inventories[0] * 2 / 12000.])
+    sizes = np.array([initial_inventories[0] * 2 / 120000])
 
-    lambda_ = 700.
+    lambda_ = 5000.
     a = -1.8
     b = 1300
 
@@ -344,7 +346,7 @@ def main():
         "cfmmsqrt_noarb",
         "cfmmsqrt",
         "PObcf_noarb",
-        "SObcf_noarb",
+        "SObcf",
         "POmyopic_noarb",
         "curvev2_noarb",
         "curvev2",
@@ -359,7 +361,7 @@ def main():
             else:
                 raise ValueError("Unrecognized typo:", typo)
             jobs = []
-            deltas = range(1, 25)
+            deltas = [1, 5, 10, 30]
             for delta in deltas:
                 lp_params = (typo, initial_inventories, initial_cash, delta)
                 job = Process(target=monte_carlo, args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
@@ -506,45 +508,48 @@ def main():
                 color = "brown"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            param_values = [
-                (15, 1, 0, 5, 1),  # no spread
-                (2.5, 3, 5, 5, 4),
-                (2.5, 6, 2.5, 5, 4),
-                (5, 1, 5, 5, 1),
-                (5, 3, 5, 5, 4),
-                (7.5, 2, 5, 5, 1),
-                (7.5, 1, 5, 5, 1),
-                (7.5, 1, 3, 5, 1),
-            ]
-            param_schema = [
-                "delta_in_bps",
-                "z",
-                "horizon_in_dt",
-                "lookback_calls",
-                "lookback_step",
-            ]
-            jobs = []
-            params = [
-                dict((k, v) for k, v in zip(param_schema, param))
-                for param in param_values
-            ]
-            for idx, param in enumerate(params):
-                param["name"] = f'{idx}'
-                lp_params = (typo, initial_inventories, initial_cash, param)
-                job = Process(target=monte_carlo,
-                              args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
-                job.start()
-                jobs.append(job)
-            for job in jobs:
-                job.join()
-            for param in params:
-                name, mean, stdev, volume, arb_volume = q.get()
-                names.append(name)
-                means.append(mean)
-                stdevs.append(stdev)
-                volumes.append(volume)
-                arb_volumes.append(arb_volume)
-                colors.append(color)
+            for concentration in [1]:
+                param_values = [
+                    (15, 1, 0, 5, 1,),  # no spread
+                    (2.5, 3, 5, 5, 4),
+                    (2.5, 6, 2.5, 5, 4),
+                    (5, 1, 5, 5, 1),
+                    (5, 3, 5, 5, 4),
+                    (7.5, 2, 5, 5, 1),
+                    (7.5, 1, 5, 5, 1),
+                    (7.5, 1, 3, 5, 1),
+                    (15, 1, 3, 5, 1),
+                ]
+                param_schema = [
+                    "delta_in_bps",
+                    "z",
+                    "horizon_in_dt",
+                    "lookback_calls",
+                    "lookback_step",
+                ]
+                jobs = []
+                params = [
+                    dict((k, v) for k, v in zip(param_schema, param))
+                    for param in param_values
+                ]
+                for idx, param in enumerate(params):
+                    param["name"] = f'{idx}{f"_conc{concentration}" if concentration != 1 else ""}'
+                    param["concentration"] = concentration
+                    lp_params = (typo, initial_inventories, initial_cash, param)
+                    job = Process(target=monte_carlo,
+                                args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
+                    job.start()
+                    jobs.append(job)
+                for job in jobs:
+                    job.join()
+                for param in params:
+                    name, mean, stdev, volume, arb_volume = q.get()
+                    names.append(name)
+                    means.append(mean)
+                    stdevs.append(stdev)
+                    volumes.append(volume)
+                    arb_volumes.append(arb_volume)
+                    colors.append(color)
 
         elif "cfmmsqrt" in typo:
             if typo == "cfmmsqrt":
@@ -553,7 +558,7 @@ def main():
                 color = "olive"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            deltas = range(1, 30)
+            deltas = [1, 5, 10, 30]
             jobs = []
             for delta in deltas:
                 lp_params = (typo, initial_inventories, initial_cash, delta)
@@ -619,7 +624,7 @@ def main():
                 color = "pink"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            gammas = [0., 100., 10000, 100000]
+            gammas = [0., 10, 100., 5000., 10000]
             jobs = []
             for gamma in gammas:
                 lp_params = (typo, initial_inventories, initial_cash, gamma)
@@ -645,7 +650,7 @@ def main():
                 color = "yellow"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            gammas = [0., 10, 100., 5000., 10000, 50000]
+            gammas = [0., 10, 100., 5000., 10000]
             jobs = []
             for gamma in gammas:
                 lp_params = (typo, initial_inventories, initial_cash, gamma)
