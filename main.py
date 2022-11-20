@@ -92,18 +92,18 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             return lp
     elif typo == 'cfmmsqrt':
         def lp_init():
-            delta = extra_params
+            delta, concentration = extra_params
             lp = CFMMSqrt(
-                'cfmmsqrt%d' % delta, initial_inventories.copy(), initial_cash, market,
-                BaseOracle(), True, delta * BPS_PRECISION,
+                f'cfmmsqrt{delta}{"" if concentration == 1 else f"_conc{concentration}"}', initial_inventories.copy(), initial_cash, market,
+                BaseOracle(), True, delta * BPS_PRECISION, concentration=concentration
             )
             return lp
     elif typo == 'cfmmsqrt_noarb':
         def lp_init():
-            delta = extra_params
+            delta, concentration = extra_params
             lp = CFMMSqrt(
-                'cfmmsqrt_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
-                BaseOracle(), False, delta * BPS_PRECISION,
+                f'cfmmsqrt{delta}{"" if concentration == 1 else f"_conc{concentration}"}', initial_inventories.copy(), initial_cash, market,
+                BaseOracle(), False, delta * BPS_PRECISION, concentration=concentration
             )
             return lp
     elif typo == 'cfmmpowers':
@@ -558,24 +558,25 @@ def main():
                 color = "olive"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            deltas = [1, 5, 10, 30]
-            jobs = []
-            for delta in deltas:
-                lp_params = (typo, initial_inventories, initial_cash, delta)
-                job = Process(target=monte_carlo,
-                              args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
-                job.start()
-                jobs.append(job)
-            for job in jobs:
-                job.join()
-            for delta in deltas:
-                name, mean, stdev, volume, arb_volume = q.get()
-                names.append(name)
-                means.append(mean)
-                stdevs.append(stdev)
-                volumes.append(volume)
-                arb_volumes.append(arb_volume)
-                colors.append(color)
+            for concentration in [1, 10, 100]:
+                deltas = [1, 5, 10, 30]
+                jobs = []
+                for delta in deltas:
+                    lp_params = (typo, initial_inventories, initial_cash, (delta, concentration))
+                    job = Process(target=monte_carlo,
+                                args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
+                    job.start()
+                    jobs.append(job)
+                for job in jobs:
+                    job.join()
+                for delta in deltas:
+                    name, mean, stdev, volume, arb_volume = q.get()
+                    names.append(name)
+                    means.append(mean)
+                    stdevs.append(stdev)
+                    volumes.append(volume)
+                    arb_volumes.append(arb_volume)
+                    colors.append(color)
 
         elif "cfmmpowers" in typo:
             if typo == "cfmmpowers":

@@ -58,7 +58,7 @@ class CFMMSqrt(CFMMPowers):
     
     def restore_state(self, state):
         super().restore_state(state)
-        self.concentrated_inventories = state["concentrated_inventories"]
+        self.concentrated_inventories = np.array(state["concentrated_inventories"])
 
     def get_state(self):
         s = super().get_state()
