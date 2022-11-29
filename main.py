@@ -295,26 +295,26 @@ def main():
     currencies = ['USD', 'ETH']
     initial_prices = [1., 1600.]
     init_swap_price_01 = initial_prices[1] / initial_prices[0]
-    initial_inventories = 1000000. * np.array([1., 1 / init_swap_price_01])
+    initial_inventories = 2000000. * np.array([1., 1 / init_swap_price_01])
 
     scale = 1. / NUM_TRADING_DAYS_PER_YEAR
-    mu = 0.5 * scale
-    sigma = 0.8 * np.sqrt(scale)
+    mu = 0 * scale
+    sigma = 1 * np.sqrt(scale)
     print(f"mu={mu}, sigma={sigma}")
 
     dt_norm_factor = 1. / NUM_SECS_PER_DAY
     dt_step = 2
     dt_sim = dt_step * dt_norm_factor
     assert dt_sim <= DT_ORACLE  # TODO: remove this
-    assert (DT_ORACLE % dt_sim) < 1e-15  # TODO: remove this
-    t_sim = 0.1
+    assert ((DT_ORACLE * dt_norm_factor) % (dt_sim * dt_norm_factor)) < 1e-7  # TODO: remove this
+    t_sim = 0.5
     simul_params = (dt_sim, t_sim)
 
     currencies_params = (currencies, init_swap_price_01, mu, sigma)
 
-    sizes = np.array([initial_inventories[0] * 2 / 120000])
+    sizes = np.array([initial_inventories[0] * 2 / 1000])
 
-    lambda_ = 5000.
+    lambda_ = 100.
     a = -1.8
     b = 1300
 
@@ -326,7 +326,7 @@ def main():
 
     print(f"dt_sim={dt_sim}, t_sim={t_sim}")
 
-    nb_MCs = 100
+    nb_MCs = 1000
     seed = 42
 
     q = Queue()
@@ -625,7 +625,7 @@ def main():
                 color = "pink"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            gammas = [0., 10, 100., 5000., 10000]
+            gammas = [0, 3 * 10**-1, 10**-1, 10**-2, 10**-3, 10**-6]
             jobs = []
             for gamma in gammas:
                 lp_params = (typo, initial_inventories, initial_cash, gamma)
@@ -651,7 +651,7 @@ def main():
                 color = "yellow"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            gammas = [0., 10, 100., 5000., 10000]
+            gammas = [0, 3 * 10**-1, 10**-1, 10**-2, 10**-3, 10**-6]
             jobs = []
             for gamma in gammas:
                 lp_params = (typo, initial_inventories, initial_cash, gamma)
