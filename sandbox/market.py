@@ -39,7 +39,7 @@ class Market:
 
         market_swap_prices_01 = np.zeros([nb_t])
         market_swap_prices_01[1:] = np.sqrt(dt) * np.cumsum(np.random.normal(0., self.sigma, nb_t-1))
-        market_swap_prices_01 = self.init_swap_price_01 * np.exp((self.mu - self.sigma/2.) * times + market_swap_prices_01)
+        market_swap_prices_01 = self.init_swap_price_01 * np.exp((self.mu - (self.sigma ** 2) / 2.) * times + market_swap_prices_01)
     
         current_swap_price_01 = market_swap_prices_01[0]
         current_swap_price_10 = 1. / current_swap_price_01
