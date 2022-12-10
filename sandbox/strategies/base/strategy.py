@@ -85,7 +85,7 @@ class BaseLiquidityProvider:
         amount = 0
         ko = 0
         ok = 0
-        while ko < 4 and ok < 1000:
+        while ko < 4 and ok < step_ratio:
             proposed_swap_price_01 = self.proposed_swap_prices_01(s)
             if proposed_swap_price_01 * (1 + relative_cost) > swap_price_01:
                 s /= 2
@@ -113,7 +113,7 @@ class BaseLiquidityProvider:
         amount = 0
         ko = 0
         ok = 0
-        while ko < 4 and ok < 1000:
+        while ko < 4 and ok < step_ratio:
             proposed_swap_price_10 = self.proposed_swap_prices_10(s)
             if proposed_swap_price_10 * (1 + relative_cost) > swap_price_10:
                 s /= 2
