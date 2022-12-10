@@ -19,7 +19,7 @@ class BestClosedForm(BaseLiquidityProvider):
         minus11 = np.sum(np.array([z * (self.lts_01[k].H_prime(0.) - self.lts_10[k].H_prime(0.)) for k, z in enumerate(self.market.sizes)]))
 
         self.a = (self.market.sigma**2 + np.sqrt(self.market.sigma**4 + 4. * self.gamma * self.market.sigma**2 * plus21)) / (4. * plus21)
-        self.b = - (minus11 - minus22 * self.a) / plus21
+        self.b = - (0.5 * self.market.mu / self.a + minus11 - minus22 * self.a) / plus21
 
     def pricing_function_01(self, nb_coins_1, swap_price_01):
 
