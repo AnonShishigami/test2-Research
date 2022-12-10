@@ -25,7 +25,8 @@ NUM_TRADING_DAYS_PER_YEAR = 365.242199
 NUM_SECS_PER_DAY = 24 * 60 * 60
 BPS_PRECISION = 1e-4
 RFR = 0. / 100
-DT_ORACLE = 10 / NUM_SECS_PER_DAY
+DT_ORACLE = 27 / NUM_SECS_PER_DAY
+DEV_THRESHOLD = None
 
 
 def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q):
@@ -79,7 +80,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             delta = extra_params
             lp = CstDelta(
                 'SOcst%d' % delta, initial_inventories.copy(), initial_cash, market,
-                SparseOracle(DT_ORACLE), True, delta * BPS_PRECISION,
+                SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), True, delta * BPS_PRECISION,
             )
             return lp
     elif typo == 'SOcst_noarb':
@@ -87,7 +88,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             delta = extra_params
             lp = CstDelta(
                 'SOcst_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
-                SparseOracle(DT_ORACLE), False, delta * BPS_PRECISION,
+                SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), False, delta * BPS_PRECISION,
             )
             return lp
     elif typo == 'cfmmsqrt':
@@ -134,7 +135,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             concentration = extra_params["concentration"]
             lp = SwaapV1(
                 f'mmm_{name}', initial_inventories.copy(), initial_cash, market,
-                SparseOracle(DT_ORACLE), True, delta,
+                SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), True, delta,
                 z, horizon, lookback_calls, lookback_step,
                 concentration=concentration
             )
@@ -150,7 +151,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             lookback_step = extra_params["lookback_step"]
             lp = SwaapV1(
                 f'mmm_{name}_noarb', initial_inventories.copy(), initial_cash, market,
-                SparseOracle(DT_ORACLE), False, delta,
+                SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), False, delta,
                 z, horizon, lookback_calls, lookback_step,
             )
             return lp
@@ -244,7 +245,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             gamma = extra_params
             lp = BestClosedForm(
                 'SObcf%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
-                SparseOracle(DT_ORACLE), True, gamma,
+                SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), True, gamma,
             )
             return lp
     elif typo == 'SObcf_noarb':
@@ -252,7 +253,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             gamma = extra_params
             lp = BestClosedForm(
                 'SObcf_noarb%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
-                SparseOracle(DT_ORACLE), False, gamma,
+                SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), False, gamma,
             )
             return lp
 
