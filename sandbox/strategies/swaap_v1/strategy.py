@@ -9,7 +9,10 @@ class SwaapV1(CFMMSqrt):
     def __init__(
         self, name, initial_inventories, initial_cash, market, oracle, support_arb, delta,
         z, horizon, lookback_calls, lookback_step,
-        concentration=1
+        concentration=1, 
+        unpeg_tolerance=2.5 / 100,
+        bot_pause_threshold=5 / 100,
+        bot_unpause_threshold=0.15 / 100,
     ):
         super().__init__(name, initial_inventories, initial_cash, market, oracle, support_arb, delta, concentration=concentration)
 
@@ -24,6 +27,9 @@ class SwaapV1(CFMMSqrt):
         self.horizon = horizon
         self.z = z
         self.concentrated_inventories = [i * np.sqrt(self.concentration) for i in self.inventories]
+        self.unpeg_ratio = 1 + unpeg_tolerance
+        self.bot_pause_threshold = bot_pause_threshold
+        self.bot_unpause_threshold = bot_unpause_threshold
 
     def set__init__price(self, time):
         self.initial_price = {
@@ -57,6 +63,8 @@ class SwaapV1(CFMMSqrt):
         return p, cash
 
     def pricing_function_wrapper(self, amount_out, price, index_out):
+        if self.is_pause():
+            return np.inf, 0.
         if min(self.concentrated_inventories[index_out], self.inventories[index_out]) < amount_out:
             return np.inf, 0.
         index_in = 0 if index_out == 1 else 1
@@ -187,7 +195,73 @@ class SwaapV1(CFMMSqrt):
         return r_in_eq
     
     # TODO: remove this and improve inheritance with cfmmpowers and concentrated liquidity feature
-    def _arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
-        return BaseLiquidityProvider._arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio=step_ratio, *args, **kwargs)
-    def _arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
-        return BaseLiquidityProvider._arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio=step_ratio, *args, **kwargs)
+    def _arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio, *args, **kwargs):
+
+        last_price_01 = self.oracle.get()
+
+        state = self.get_state()
+
+        s = self.inventories[1] / step_ratio
+        amount = 0
+        ko = 0
+        ok = 0
+        while ko < 4 and ok < step_ratio:
+            proposed_swap_price_01 = self.proposed_swap_prices_01(s)
+            if (proposed_swap_price_01 * (1 + relative_cost) > swap_price_01) or (proposed_swap_price_01 / last_price_01 >= self.unpeg_ratio):
+                s /= 2
+                ko += 1
+            else:
+                success = self.update_01(1)
+                if not success:
+                    break
+                amount += s
+                ok += 1
+
+        if amount:
+            self.restore_state(state)
+            proposed_swap_price_01 = self.proposed_swap_prices_01(amount)
+            if proposed_swap_price_01 * (1 + relative_cost) <= swap_price_01:
+                self.update_01(1)
+
+        return amount
+
+    def _arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio, *args, **kwargs):
+        
+        last_price_10 = 1 / self.oracle.get()
+
+        state = self.get_state()
+
+        s = self.inventories[0] / step_ratio
+        amount = 0
+        ko = 0
+        ok = 0
+        while ko < 4 and ok < step_ratio:
+            proposed_swap_price_10 = self.proposed_swap_prices_10(s)
+            if (proposed_swap_price_10 * (1 + relative_cost) > swap_price_10) or (proposed_swap_price_10 / last_price_10 >= self.unpeg_ratio):
+                s /= 2
+                ko += 1
+            else:
+                success = self.update_10(1)
+                if not success:
+                    break
+                amount += s
+                ok += 1
+
+        if amount:
+            self.restore_state(state)
+            proposed_swap_price_10 = self.proposed_swap_prices_10(amount)
+            if proposed_swap_price_10 * (1 + relative_cost) <= swap_price_10:
+                self.update_10(1)
+
+        return amount
+
+    def bot(self, market_price_01, *args, **kwargs):
+        try:
+            oracle_price_01 = self.oracle.get() 
+        except:
+            oracle_price_01 = None
+        if oracle_price_01 is not None:
+            if abs(market_price_01 / oracle_price_01 - 1) >= self.bot_pause_threshold:
+                self.pause()
+            elif abs(market_price_01 / oracle_price_01 - 1) < self.bot_unpause_threshold:
+                self.unpause()
