@@ -62,17 +62,25 @@ class LaggedOracle(BaseOracle):
 
 class SparseOracle(PerfectOracle):
 
-    def __init__(self, min_period, deviation_threshold):
+    def __init__(self, min_period, deviation_threshold, min_period_std=0):
         super().__init__()
         self.min_period = min_period
         self.deviation_threshold = deviation_threshold
         self.all_prices = []
+        self.all_times = []
 
     def update(self, time, price):
+        updated = False
         if (not self.times) or (time >= self.times[-1] + self.min_period):
             super().update(time, price)
-        elif self.deviation_threshold is not None:
+            updated = True
+        
+        if self.deviation_threshold is not None:
+            if not updated:
+                if self.prices \
+                    and len(self.all_prices) >= 1 \
+                    and abs(self.all_prices[-1] / self.prices[-1] - 1) >= self.deviation_threshold \
+                    and self.all_times[-1] >= self.times[-1]:
+                        super().update(self.all_times[-1], self.all_prices[-1])
             self.all_prices.append(price)
-            if self.prices and len(self.all_prices) >= 1 and abs(self.all_prices[-1] / self.prices[-1] - 1) >= self.deviation_threshold:
-                super().update(time, self.all_prices[-1])
-                pass
+            self.all_times.append(time)
