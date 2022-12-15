@@ -32,15 +32,23 @@ class Market:
         self.intensities_functions_01 = [obj.Lambda for obj in intensity_functions_01_object]
         self.intensities_functions_10 = [obj.Lambda for obj in intensity_functions_10_object]
 
-    def simulate(self, dt, T, lp, verbose=False):
+    def merton_jump_paths(self, S, dt, r, sigma,  lam, m, v, steps):
+        size=steps
+        poi_rv = np.multiply(np.random.poisson( lam*dt, size=size),
+                            np.random.normal(m,v, size=size)).cumsum(axis=0)
+        geo = np.cumsum(((r -  (sigma**2)/2 -lam*(m  + v**2*0.5))*dt +\
+                                sigma*np.sqrt(dt) * \
+                                np.random.normal(size=size)), axis=0)
+        
+        return np.exp(geo+poi_rv)*S
+        
+    def simulate(self, dt, T, lp, verbose=False, process_type="merton_jump", process_parameters=()):
 
         nb_t = int(T / dt) + 1
         times = np.linspace(0., T, nb_t)
 
-        market_swap_prices_01 = np.zeros([nb_t])
-        market_swap_prices_01[1:] = np.sqrt(dt) * np.cumsum(np.random.normal(0., self.sigma, nb_t-1))
-        market_swap_prices_01 = self.init_swap_price_01 * np.exp((self.mu - (self.sigma ** 2) / 2.) * times + market_swap_prices_01)
-    
+        market_swap_prices_01 = self._generate_price_process(process_type, dt, nb_t, times, *process_parameters)
+        
         current_swap_price_01 = market_swap_prices_01[0]
         current_swap_price_10 = 1. / current_swap_price_01
 
@@ -63,13 +71,16 @@ class Market:
             print("C'est parti pour %d périodes\n"%nb_t)
         
         for t in range(nb_t-1):
+            
+            # every lp can decide to implement an off-chain bot able to trigger on-chain txs -- such as to stop operating etc. -- based on off-chain data.
+            lp.bot(current_swap_price_01)
 
             if verbose and t % 100 == 0:
                 print(t)
 
             current_time = times[t]
             lp.oracle.update(current_time, current_swap_price_01)
-
+            
             # retail trading
             for index in np.random.permutation(2 * self.nb_sizes):
                 side = index % 2
@@ -97,8 +108,7 @@ class Market:
                             volumes[t+1] += size
 
             # spatial arbitrage trading
-            for index in [0, 1]:
-                side = index % 2
+            for side in np.random.permutation([0, 1]):
                 if side == 0:
                     arb_size = lp.arb_01(
                         swap_price_01=current_swap_price_01,
@@ -106,7 +116,7 @@ class Market:
                         relative_cost=0.075 / 100
                     ) * current_swap_price_01
                     if arb_size > 0:
-                        arb_volumes[t+1] += arb_size     
+                        arb_volumes[t+1] += arb_size
                 else:
                     arb_size = lp.arb_10(
                         swap_price_10=current_swap_price_10,
@@ -120,8 +130,7 @@ class Market:
             current_swap_price_10 = 1. / current_swap_price_01
 
             # temporal arbitrage trading
-            for index in [0, 1]:
-                side = index % 2
+            for side in np.random.permutation([0, 1]):
                 if side == 0:
                     arb_size = lp.arb_01(
                         swap_price_01=current_swap_price_01,
@@ -147,3 +156,22 @@ class Market:
         return SimulationResults(
             times, market_swap_prices_01, inventories, cash, (mtm_value - mtm_value_hodl) / mtm_value_hodl, volumes, arb_volumes, proposed_swap_price_diffs, self
         )
+
+    def _generate_price_process(self, process_type, dt, nb_t, times, *args):
+        if process_type == "merton_jump":
+            S = self.init_swap_price_01 # current stock price
+            dt = dt # time step
+            r = 0.0 # risk free rate
+            m = self.mu # meean of jump size
+            v = 0.001 # standard deviation of jump
+            lam = 1000 # intensity of jump i.e. number of jumps per annum
+            steps = nb_t # time steps
+            sigma = self.sigma # annaul standard deviation , for weiner process
+            return self.merton_jump_paths(S, dt, r, sigma, lam, m, v, steps)
+        elif process_type == "gbm":
+            market_swap_prices_01 = np.zeros([nb_t])
+            market_swap_prices_01[1:] = np.sqrt(dt) * np.cumsum(np.random.normal(0., self.sigma, nb_t-1))
+            return self.init_swap_price_01 * np.exp((self.mu - (self.sigma ** 2) / 2.) * times + market_swap_prices_01)
+        else:
+            raise ValueError("unrecognized process type:", process_type)
+        
