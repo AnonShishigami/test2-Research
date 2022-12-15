@@ -25,8 +25,9 @@ NUM_TRADING_DAYS_PER_YEAR = 365.242199
 NUM_SECS_PER_DAY = 24 * 60 * 60
 BPS_PRECISION = 1e-4
 RFR = 0. / 100
-DT_ORACLE = 27 / NUM_SECS_PER_DAY
+DT_ORACLE = 10 / NUM_SECS_PER_DAY
 DEV_THRESHOLD = None
+PROCESS_TYPE="merton_jump"
 
 
 def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q):
@@ -273,11 +274,11 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         lp = lp_init()
         if j % 10 == 0:
             print(lp_name + ': ' + str(j))
-        _res = market.simulate(dt_sim, t_sim, lp)
+        _res = market.simulate(dt_sim, t_sim, lp, process_type=PROCESS_TYPE)
         pnls[j] = _res.pnl[-1]
         volumes[j] = np.sum(_res.volumes)
         arb_volumes = np.sum(_res.arb_volumes)
-        proposed_swap_price_diffs += _res.proposed_swap_price_diffs.tolist()
+        proposed_swap_price_diffs += [v for v in _res.proposed_swap_price_diffs.tolist() if not np.isinf(v)]
 
     res = (lp_name, np.mean(pnls), np.std(pnls), np.mean(volumes), np.mean(arb_volumes))
     apr = res[1]  * NUM_TRADING_DAYS_PER_YEAR / t_sim
@@ -285,7 +286,8 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     s = f"name: {res[0]}, apr={apr * 100:.4f}% mean={res[1] * 100:.6f}%, var={res[2] * 100:.6f}%, retail={res[3]:.2f}, arb={res[4]:.2f}, sharpe={res[1] / res[2]:.2f}"
     # s += '\nprice delta distribution:'
     # for per in [0, 1, 10, 25, 50, 75, 90, 99, 100]:
-    #     s += f'\np{per}: {100 * np.percentile(proposed_swap_price_diffs, per)}%'
+    #     s += f'\np{per}: {100 * np.percentile(np.abs(proposed_swap_price_diffs), per)}%'
+    # s += f'\nmean: {100 * np.mean(np.abs(proposed_swap_price_diffs))}%'
     print(s)
 
     q.put(res)
@@ -293,13 +295,18 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
 
 
 def main():
+    
+    print("DT_ORACLE:", DT_ORACLE)
+    print("DEV_THRESHOLD:", DEV_THRESHOLD)
+    print("PROCESS_TYPE:", PROCESS_TYPE)
+
     currencies = ['USD', 'ETH']
     initial_prices = [1., 1600.]
     init_swap_price_01 = initial_prices[1] / initial_prices[0]
     initial_inventories = 2000000. * np.array([1., 1 / init_swap_price_01])
 
     scale = 1. / NUM_TRADING_DAYS_PER_YEAR
-    mu = 0 * scale
+    mu = 0. * scale
     sigma = 1 * np.sqrt(scale)
     print(f"mu={mu}, sigma={sigma}")
 
@@ -514,12 +521,11 @@ def main():
                     (15, 1, 0, 5, 1,),  # no spread
                     (2.5, 3, 5, 5, 4),
                     (2.5, 6, 2.5, 5, 4),
-                    (5, 1, 5, 5, 1),
                     (5, 3, 5, 5, 4),
                     (7.5, 2, 5, 5, 1),
-                    (7.5, 1, 5, 5, 1),
-                    (7.5, 1, 3, 5, 1),
+                    (7.5, 6, 5, 5, 1),
                     (15, 1, 3, 5, 1),
+                    (25, 1, 1, 5, 1),
                 ]
                 param_schema = [
                     "delta_in_bps",
