@@ -21,6 +21,7 @@ class BaseLiquidityProvider:
         self.last_answer_10 = None
         self.last_cashed_01 = None
         self.last_cashed_10 = None
+        self._pause = False
 
     def pricing_function_01(self, nb_coins_1, swap_price_01):
         return np.inf, 0.
@@ -142,3 +143,15 @@ class BaseLiquidityProvider:
             "inventories": copy.deepcopy([float(v) for v in self.inventories]),
             "cash": float(self.cash),
         }
+
+    def bot(self, *args, **kwargs):
+        pass
+    
+    def is_pause(self):
+        return self._pause
+
+    def pause(self):
+        self._pause = True
+    
+    def unpause(self):
+        self._pause = False
