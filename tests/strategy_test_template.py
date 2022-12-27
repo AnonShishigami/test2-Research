@@ -29,6 +29,8 @@ class StrategyTestTemplate:
                 np.testing.assert_array_equal(groundtruth[key], actual[key])
 
     def  _test_exchange(self, expected_price, buy_idx, buy_amount, time):
+
+        self.strategy.oracle.set_time(time)
         
         if buy_idx == 1:
             pricing_function = self.strategy.proposed_swap_prices_01
@@ -43,7 +45,7 @@ class StrategyTestTemplate:
         state = self.strategy.get_state()
 
         # execute trade
-        pricing_function(time, buy_amount)
+        pricing_function(buy_amount)
         update_function(1)
         actual_price = price_getter()
         if self.test_exchange_rtol:
@@ -53,7 +55,7 @@ class StrategyTestTemplate:
         
         # restore state then check that result is unchanged
         self.strategy.restore_state(state)
-        pricing_function(time, buy_amount)
+        pricing_function(buy_amount)
         update_function(1)
         actual_price = price_getter()
         if self.test_exchange_rtol:
