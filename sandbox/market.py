@@ -115,16 +115,14 @@ class Market:
                         fixed_cost=0.01,
                         relative_cost=0.075 / 100
                     ) * current_swap_price_01
-                    if arb_size > 0:
-                        arb_volumes[t+1] += arb_size
                 else:
                     arb_size = lp.arb_10(
                         swap_price_10=current_swap_price_10,
                         fixed_cost=0.01,
                         relative_cost=0.075 / 100
                     )
-                    if arb_size > 0:
-                        arb_volumes[t+1] += arb_size
+                if arb_size > 0:
+                    arb_volumes[t+1] += arb_size
 
             current_swap_price_01 = market_swap_prices_01[t + 1]
             current_swap_price_10 = 1. / current_swap_price_01
@@ -152,7 +150,7 @@ class Market:
             cash[t + 1] = lp.cash
             mtm_value[t + 1] = lp.mtm_value(current_swap_price_01)
             mtm_value_hodl[t + 1] = lp.initial_cash + lp.initial_inventories[0] + current_swap_price_01 * lp.initial_inventories[1]
-
+    
         return SimulationResults(
             times, market_swap_prices_01, inventories, cash, (mtm_value - mtm_value_hodl) / mtm_value_hodl, volumes, arb_volumes, proposed_swap_price_diffs, self
         )
