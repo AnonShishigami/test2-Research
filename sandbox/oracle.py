@@ -1,5 +1,7 @@
 import numpy as np
 
+np.random.seed(42)
+
 
 class BaseOracle:
 
@@ -8,6 +10,7 @@ class BaseOracle:
         self.prices = []
         self.length = 0
         self.current_time = 0
+        self._subject_to_fronrunning = False
 
     def update(self, time, price):
         self.times.append(time)
@@ -34,6 +37,9 @@ class BaseOracle:
             for i in range(min(int((self.length - 1) / lookback_step), lookback_calls))
         ]
 
+    def is_subject_to_fronrunning(self):
+        return self._subject_to_fronrunning
+
 
 class PerfectOracle(BaseOracle):
 
@@ -49,6 +55,7 @@ class LaggedOracle(BaseOracle):
     def __init__(self, lag):
         super().__init__()
         self.lag = lag
+        self._subject_to_fronrunning = True
 
     def get(self):
         t = 0
@@ -57,7 +64,7 @@ class LaggedOracle(BaseOracle):
         return self.prices[self.length-1-t]
 
     def get_last_timestamped_prices(self, lookback_calls, route, lookback_step=1):
-        return []
+        raise NotImplementedError
 
 
 class SparseOracle(PerfectOracle):
@@ -68,6 +75,7 @@ class SparseOracle(PerfectOracle):
         self.deviation_threshold = deviation_threshold
         self.all_prices = []
         self.all_times = []
+        self._subject_to_fronrunning = True
 
     def update(self, time, price):
         updated = False
@@ -84,3 +92,17 @@ class SparseOracle(PerfectOracle):
                         super().update(self.all_times[-1], self.all_prices[-1])
             self.all_prices.append(price)
             self.all_times.append(time)
+
+
+class NoisyOracle(PerfectOracle):
+
+    def __init__(self,):
+        super().__init__()
+        self.half_window = 0.05 / 100
+        self._subject_to_fronrunning = True
+
+    def get(self):
+        perfect_price = super().get()
+        if self.half_window > 0:
+            return np.random.uniform(perfect_price * (1 - self.half_window), self.prices[-1] * (1 + self.half_window))
+        return perfect_price

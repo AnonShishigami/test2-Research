@@ -128,23 +128,24 @@ class Market:
             current_swap_price_10 = 1. / current_swap_price_01
 
             # temporal arbitrage trading
-            for side in np.random.permutation([0, 1]):
-                if side == 0:
-                    arb_size = lp.arb_01(
-                        swap_price_01=current_swap_price_01,
-                        fixed_cost=0.01,
-                        relative_cost=0.075 / 100
-                    ) * current_swap_price_01
-                    if arb_size > 0:
-                        arb_volumes[t+1] += arb_size         
-                else:
-                    arb_size = lp.arb_10(
-                        swap_price_10=current_swap_price_10,
-                        fixed_cost=0.01,
-                        relative_cost=0.075 / 100
-                    )
-                    if arb_size > 0:
-                        arb_volumes[t+1] += arb_size
+            if lp.oracle.is_subject_to_fronrunning():
+                for side in np.random.permutation([0, 1]):
+                    if side == 0:
+                        arb_size = lp.arb_01(
+                            swap_price_01=current_swap_price_01,
+                            fixed_cost=0.01,
+                            relative_cost=0.075 / 100
+                        ) * current_swap_price_01
+                        if arb_size > 0:
+                            arb_volumes[t+1] += arb_size         
+                    else:
+                        arb_size = lp.arb_10(
+                            swap_price_10=current_swap_price_10,
+                            fixed_cost=0.01,
+                            relative_cost=0.075 / 100
+                        )
+                        if arb_size > 0:
+                            arb_volumes[t+1] += arb_size
 
             inventories[t + 1, :] = [v for v in lp.inventories]
             cash[t + 1] = lp.cash
