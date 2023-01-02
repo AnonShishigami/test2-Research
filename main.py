@@ -9,7 +9,7 @@ import numpy as np
 from sandbox.demand_curve import Logistic
 from sandbox.control_tools import MixedLogisticsExtended
 from sandbox.market import Market
-from sandbox.oracle import BaseOracle, PerfectOracle, LaggedOracle, SparseOracle
+from sandbox.oracle import BaseOracle, PerfectOracle, LaggedOracle, SparseOracle, NoisyOracle
 # strategies
 from sandbox.strategies.swaap_v1.strategy import SwaapV1
 from sandbox.strategies.cfmm_powers.strategy import CFMMPowers
@@ -17,6 +17,8 @@ from sandbox.strategies.cfmm_sqrt.strategy import CFMMSqrt
 from sandbox.strategies.cst_delta.strategy import CstDelta
 from sandbox.strategies.curve_v2.strategy import CurveV2
 from sandbox.strategies.best_closed_form.strategy import BestClosedForm
+from sandbox.strategies.swaap_v2.strategy import SwaapV2
+from sandbox.strategies.clipper.strategy import Clipper
 
 
 warnings.filterwarnings("ignore")
@@ -27,6 +29,7 @@ BPS_PRECISION = 1e-4
 RFR = 0. / 100
 DT_ORACLE = 10 / NUM_SECS_PER_DAY
 DEV_THRESHOLD = None
+PROCESS_TYPE="gbm"
 PROCESS_TYPE="merton_jump"
 
 
@@ -48,7 +51,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta = extra_params
             lp = CstDelta(
-                'POcst%d' % delta, initial_inventories.copy(), initial_cash, market,
+                'POcst_%d' % delta, initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), True, delta * BPS_PRECISION,
             )
             return lp
@@ -56,7 +59,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta = extra_params
             lp = CstDelta(
-                'POcst_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
+                'POcst_noarb_%d' % delta, initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), False, delta * BPS_PRECISION,
             )
             return lp
@@ -64,7 +67,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta = extra_params
             lp = CstDelta(
-                'LOcst%d' % delta, initial_inventories.copy(), initial_cash, market,
+                'LOcst_%d' % delta, initial_inventories.copy(), initial_cash, market,
                 LaggedOracle(DT_ORACLE), True, delta * BPS_PRECISION,
             )
             return lp
@@ -72,7 +75,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta = extra_params
             lp = CstDelta(
-                'LOcst_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
+                'LOcst_noarb_%d' % delta, initial_inventories.copy(), initial_cash, market,
                 LaggedOracle(DT_ORACLE), False, delta * BPS_PRECISION,
             )
             return lp
@@ -88,7 +91,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta = extra_params
             lp = CstDelta(
-                'SOcst_noarb%d' % delta, initial_inventories.copy(), initial_cash, market,
+                'SOcst_noarb_%d' % delta, initial_inventories.copy(), initial_cash, market,
                 SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), False, delta * BPS_PRECISION,
             )
             return lp
@@ -96,7 +99,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta, concentration = extra_params
             lp = CFMMSqrt(
-                f'cfmmsqrt{delta}{"" if concentration == 1 else f"_conc{concentration}"}', initial_inventories.copy(), initial_cash, market,
+                f'CFMMSqrt_{delta}{"" if concentration == 1 else f"_conc{concentration}"}', initial_inventories.copy(), initial_cash, market,
                 BaseOracle(), True, delta * BPS_PRECISION, concentration=concentration
             )
             return lp
@@ -104,7 +107,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta, concentration = extra_params
             lp = CFMMSqrt(
-                f'cfmmsqrt{delta}{"" if concentration == 1 else f"_conc{concentration}"}', initial_inventories.copy(), initial_cash, market,
+                f'CFMMSqrt_{delta}{"" if concentration == 1 else f"_conc{concentration}"}', initial_inventories.copy(), initial_cash, market,
                 BaseOracle(), False, delta * BPS_PRECISION, concentration=concentration
             )
             return lp
@@ -112,7 +115,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta, weights = extra_params["delta"], extra_params["weights"]
             lp = CFMMPowers(
-                f"cfmmpowers{delta}w{weights[0]:.2f}", initial_inventories.copy(), initial_cash, market,
+                f"CFMMPowers_{delta}w{weights[0]:.2f}", initial_inventories.copy(), initial_cash, market,
                 BaseOracle(), True, weights=weights, delta=delta * BPS_PRECISION, 
             )
             return lp
@@ -120,7 +123,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta, weights = extra_params["delta"], extra_params["weights"]
             lp = CFMMPowers(
-                f"cfmmpowers{delta}w{weights[0]:.2f}_noarb", initial_inventories.copy(), initial_cash, market,
+                f"CFMMPowers_{delta}w{weights[0]:.2f}_noarb", initial_inventories.copy(), initial_cash, market,
                 BaseOracle(), False, weights=weights, delta=delta * BPS_PRECISION,
             )
             return lp
@@ -135,7 +138,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             lookback_step = extra_params["lookback_step"]
             concentration = extra_params["concentration"]
             lp = SwaapV1(
-                f'mmm_{name}', initial_inventories.copy(), initial_cash, market,
+                f'SwaapV1_{name}', initial_inventories.copy(), initial_cash, market,
                 SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), True, delta,
                 z, horizon, lookback_calls, lookback_step,
                 concentration=concentration
@@ -151,7 +154,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
             lookback_calls = extra_params["lookback_calls"]
             lookback_step = extra_params["lookback_step"]
             lp = SwaapV1(
-                f'mmm_{name}_noarb', initial_inventories.copy(), initial_cash, market,
+                f'SwaapV1_{name}_noarb', initial_inventories.copy(), initial_cash, market,
                 SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), False, delta,
                 z, horizon, lookback_calls, lookback_step,
             )
@@ -213,7 +216,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta = extra_params
             lp = CstDelta(
-                'myopic', initial_inventories.copy(), initial_cash, market,
+                'Myopic', initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), True, delta * BPS_PRECISION,
             )
             return lp
@@ -221,7 +224,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             delta = extra_params
             lp = CstDelta(
-                'myopic', initial_inventories.copy(), initial_cash, market,
+                'Myopic_noarb', initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), False, delta * BPS_PRECISION,
             )
             return lp
@@ -229,7 +232,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             gamma = extra_params
             lp = BestClosedForm(
-                'PObcf%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
+                'PObcf_%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), True, gamma,
             )
             return lp
@@ -237,15 +240,31 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             gamma = extra_params
             lp = BestClosedForm(
-                'PObcf_noarb%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
+                'PObcf_noarb_%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
                 PerfectOracle(), False, gamma,
+            )
+            return lp
+    elif typo == 'NObcf':
+        def lp_init():
+            gamma = extra_params
+            lp = BestClosedForm(
+                'NObcf_%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
+                NoisyOracle(), True, gamma,
+            )
+            return lp
+    elif typo == 'NObcf_noarb':
+        def lp_init():
+            gamma = extra_params
+            lp = BestClosedForm(
+                'NObcf_noarb_%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
+                NoisyOracle(), False, gamma,
             )
             return lp
     elif typo == 'SObcf':
         def lp_init():
             gamma = extra_params
             lp = BestClosedForm(
-                'SObcf%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
+                'SObcf_%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
                 SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), True, gamma,
             )
             return lp
@@ -253,8 +272,40 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         def lp_init():
             gamma = extra_params
             lp = BestClosedForm(
-                'SObcf_noarb%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
+                'SObcf_noarb_%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
                 SparseOracle(DT_ORACLE, deviation_threshold=DEV_THRESHOLD), False, gamma,
+            )
+            return lp
+    elif typo == 'swaapv2':
+        def lp_init():
+            gamma = extra_params
+            lp = SwaapV2(
+                'SwaapV2_%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
+                NoisyOracle(), True, gamma,
+            )
+            return lp
+    elif typo == 'swaapv2_noarb':
+        def lp_init():
+            gamma = extra_params
+            lp = SwaapV2(
+                'SwaapV2_noarb_%.0e' % gamma, initial_inventories.copy(), initial_cash, market,
+                NoisyOracle(), False, gamma,
+            )
+            return lp
+    elif typo == 'clipper':
+        def lp_init():
+            k, delta = extra_params
+            lp = Clipper(
+                'Clipper_%.0e_%d' % (k, delta), initial_inventories.copy(), initial_cash, market,
+                NoisyOracle(), True, k, delta=delta * BPS_PRECISION
+            )
+            return lp
+    elif typo == 'clipper_noarb':
+        def lp_init():
+            k, delta = extra_params
+            lp = Clipper(
+                'Clipper_noarb_%.0e_%d' % (k, delta), initial_inventories.copy(), initial_cash, market,
+                NoisyOracle(), False, k, delta=delta * BPS_PRECISION
             )
             return lp
 
@@ -265,6 +316,7 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
     print('Starting ' + lp_name)
 
     pnls = np.zeros(nb_MCs)
+    all_pnls = []
     volumes = np.zeros(nb_MCs)
     arb_volumes = np.zeros(nb_MCs)
     proposed_swap_price_diffs = []
@@ -279,6 +331,12 @@ def monte_carlo(currencies_params, sizes, log_params, lp_params, simul_params, n
         volumes[j] = np.sum(_res.volumes)
         arb_volumes = np.sum(_res.arb_volumes)
         proposed_swap_price_diffs += [v for v in _res.proposed_swap_price_diffs.tolist() if not np.isinf(v)]
+        all_pnls.append(_res.pnl)
+    
+    # for all_pnl in all_pnls:
+    #     plt.clf()
+    #     plt.plot(all_pnl)
+    #     plt.show()
 
     res = (lp_name, np.mean(pnls), np.std(pnls), np.mean(volumes), np.mean(arb_volumes))
     apr = res[1]  * NUM_TRADING_DAYS_PER_YEAR / t_sim
@@ -306,7 +364,7 @@ def main():
     initial_inventories = 2000000. * np.array([1., 1 / init_swap_price_01])
 
     scale = 1. / NUM_TRADING_DAYS_PER_YEAR
-    mu = 0. * scale
+    mu = 0.5 * scale
     sigma = 1 * np.sqrt(scale)
     print(f"mu={mu}, sigma={sigma}")
 
@@ -322,7 +380,7 @@ def main():
 
     sizes = np.array([initial_inventories[0] * 2 / 1000])
 
-    lambda_ = 100.
+    lambda_ = 600.
     a = -1.8
     b = 1300
 
@@ -334,8 +392,8 @@ def main():
 
     print(f"dt_sim={dt_sim}, t_sim={t_sim}")
 
-    nb_MCs = 1000
-    seed = 42
+    nb_MCs = 100
+    seed = 72
 
     q = Queue()
 
@@ -345,19 +403,28 @@ def main():
     volumes = []
     arb_volumes = []
     colors = []
+    markers = []
 
     for typo in [
-        "POcst_noarb",
-        "swaapv1",
-        "swaapv1_noarb",
-        "cfmmpowers",
-        "cfmmsqrt_noarb",
-        "cfmmsqrt",
-        "PObcf_noarb",
-        "SObcf",
-        "POmyopic_noarb",
-        "curvev2_noarb",
-        "curvev2",
+        # "POcst_noarb",
+        # "clipper_noarb",
+        # "clipper",
+        # "swaapv1_noarb",
+        # "swaapv1",
+        # "swaapv2_noarb",
+        "swaapv2",
+        # "cfmmpowers",
+        # "cfmmsqrt_noarb",
+        # "cfmmsqrt",
+        # "PObcf_noarb",
+        # "PObcf",
+        # "SObcf_noarb",
+        # "SObcf",
+        # "NObcf_noarb",
+        "NObcf",
+        # "POmyopic_noarb",
+        # "curvev2_noarb",
+        # "curvev2",
     ]:
 
         start = time.time()
@@ -385,6 +452,7 @@ def main():
                 volumes.append(volume)
                 arb_volumes.append(arb_volume)
                 colors.append(color)
+                markers.append(None)
 
         elif "LOcst" in typo:
             if typo == "LOcst":
@@ -411,6 +479,7 @@ def main():
                 volumes.append(volume)
                 arb_volumes.append(arb_volume)
                 colors.append(color)
+                markers.append(None)
 
         elif "SOcst" in typo:
             if typo == "SOcst":
@@ -437,6 +506,7 @@ def main():
                 volumes.append(volume)
                 arb_volumes.append(arb_volume)
                 colors.append(color)
+                markers.append(None)
 
         elif typo == "POmyopic_noarb":
             ext = MixedLogisticsExtended(Logistic(lambda_, a, b), Logistic(lambda_ / 2., 0., 10. * b))
@@ -454,6 +524,7 @@ def main():
             volumes.append(volume)
             arb_volumes.append(arb_volume)
             colors.append("black")
+            markers.append("x")
 
         elif "curvev2" in typo:
             if typo == "curvev2":
@@ -487,7 +558,7 @@ def main():
                 for param in param_values
             ]
             for idx, param in enumerate(params):
-                param["name"] = f'curvev2_{param["id"]}'
+                param["name"] = f'Curvev2_{param["id"]}'
                 param["initial_prices"] = initial_prices
                 lp_params = (typo, initial_inventories, initial_cash, param)
                 job = Process(target=monte_carlo,
@@ -508,6 +579,7 @@ def main():
                 volumes.append(volume)
                 arb_volumes.append(arb_volume)
                 colors.append(color)
+                markers.append(None)
 
         elif "swaapv1" in typo:
             if typo == "swaapv1":
@@ -519,13 +591,14 @@ def main():
             for concentration in [1]:
                 param_values = [
                     (15, 1, 0, 5, 1,),  # no spread
-                    (2.5, 3, 5, 5, 4),
-                    (2.5, 6, 2.5, 5, 4),
-                    (5, 3, 5, 5, 4),
-                    (7.5, 2, 5, 5, 1),
-                    (7.5, 6, 5, 5, 1),
-                    (15, 1, 3, 5, 1),
-                    (25, 1, 1, 5, 1),
+                    # (2.5, 3, 5, 5, 4),
+                    # (2.5, 6, 2.5, 5, 4),
+                    # (5, 3, 5, 5, 4),
+                    # (7.5, 2, 5, 5, 1),
+                    # (7.5, 6, 5, 5, 1),
+                    # (15, 1, 3, 5, 1),
+                    # (25, 1, 1, 5, 1),
+                    # (13, 1, 1, 5, 1,),
                 ]
                 param_schema = [
                     "delta_in_bps",
@@ -557,6 +630,7 @@ def main():
                     volumes.append(volume)
                     arb_volumes.append(arb_volume)
                     colors.append(color)
+                    markers.append("*")
 
         elif "cfmmsqrt" in typo:
             if typo == "cfmmsqrt":
@@ -565,7 +639,7 @@ def main():
                 color = "olive"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            for concentration in [1, 10, 100]:
+            for concentration in [1]:
                 deltas = [1, 5, 10, 30]
                 jobs = []
                 for delta in deltas:
@@ -584,6 +658,7 @@ def main():
                     volumes.append(volume)
                     arb_volumes.append(arb_volume)
                     colors.append(color)
+                    markers.append(None)
 
         elif "cfmmpowers" in typo:
             if typo == "cfmmpowers":
@@ -624,6 +699,7 @@ def main():
                     volumes.append(volume)
                     arb_volumes.append(arb_volume)
                     colors.append(color)
+                    markers.append(None)
             
         elif "PObcf" in typo:
             if typo == "PObcf":
@@ -632,7 +708,7 @@ def main():
                 color = "pink"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            gammas = [0, 3 * 10**-1, 10**-1, 10**-2, 10**-3, 10**-4, 2 * 10**-5]
+            gammas = [5 * 10**-1, 10**-2, 5 * 10**-2, 10**-3, 5 * 10**-3,  10**-4]
             jobs = []
             for gamma in gammas:
                 lp_params = (typo, initial_inventories, initial_cash, gamma)
@@ -650,6 +726,34 @@ def main():
                 volumes.append(volume)
                 arb_volumes.append(arb_volume)
                 colors.append("green")
+                markers.append(None)
+
+        elif "NObcf" in typo:
+            if typo == "NObcf":
+                color = "green"
+            elif typo == "NObcf_noarb":
+                color = "pink"
+            else:
+                raise ValueError("Unrecognized typo:", typo)
+            gammas = [5 * 10**-1, 10**-2, 5 * 10**-2, 10**-3, 5 * 10**-3,  10**-4]
+            jobs = []
+            for gamma in gammas:
+                lp_params = (typo, initial_inventories, initial_cash, gamma)
+                job = Process(target=monte_carlo,
+                              args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
+                job.start()
+                jobs.append(job)
+            for job in jobs:
+                job.join()
+            for gamma in gammas:
+                name, mean, stdev, volume, arb_volume = q.get()
+                names.append(name)
+                means.append(mean)
+                stdevs.append(stdev)
+                volumes.append(volume)
+                arb_volumes.append(arb_volume)
+                colors.append("green")
+                markers.append(None)
 
         elif "SObcf" in typo:
             if typo == "SObcf":
@@ -658,7 +762,7 @@ def main():
                 color = "yellow"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            gammas = [0, 3 * 10**-1, 10**-1, 10**-2, 10**-3, 10**-4, 2 * 10**-5]
+            gammas = [5 * 10**-1, 10**-2, 5 * 10**-2, 10**-3, 5 * 10**-3,  10**-4]
             jobs = []
             for gamma in gammas:
                 lp_params = (typo, initial_inventories, initial_cash, gamma)
@@ -677,14 +781,76 @@ def main():
                 volumes.append(volume)
                 arb_volumes.append(arb_volume)
                 colors.append(color)
+                markers.append(None)
+
+        elif "swaapv2" in typo:
+            if typo == "swaapv2":
+                color = "black"
+            elif typo == "swaapv2_noarb":
+                color = "black"
+            else:
+                raise ValueError("Unrecognized typo:", typo)
+            gammas = [5 * 10**-1, 10**-2, 5 * 10**-2, 10**-3, 5 * 10**-3,  10**-4]
+            jobs = []
+            for gamma in gammas:
+                lp_params = (typo, initial_inventories, initial_cash, gamma)
+                job = Process(target=monte_carlo,
+                              args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
+                job.start()
+                jobs.append(job)
+            for job in jobs:
+                job.join()
+
+            for gamma in gammas:
+                name, mean, stdev, volume, arb_volume = q.get()
+                names.append(name)
+                means.append(mean)
+                stdevs.append(stdev)
+                volumes.append(volume)
+                arb_volumes.append(arb_volume)
+                colors.append(color)
+                markers.append("*")
+
+        elif "clipper" in typo:
+            if typo == "clipper":
+                color = "green"
+            elif typo == "clipper_noarb":
+                color = "orange"
+            else:
+                raise ValueError("Unrecognized typo:", typo)
+            ks = [0.01, 0.1, 0.25, 0.5, 0.99999]
+            deltas = [1, 5, 10, 30]
+            jobs = []
+            for k in ks:
+                for delta in deltas:
+                    lp_params = (typo, initial_inventories, initial_cash, (k, delta))
+                    job = Process(target=monte_carlo,
+                                args=(currencies_params, sizes, log_params, lp_params, simul_params, nb_MCs, seed, q))
+                    job.start()
+                    jobs.append(job)
+            for job in jobs:
+                job.join()
+
+            for k in ks:
+                for delta in deltas:
+                    name, mean, stdev, volume, arb_volume = q.get()
+                    names.append(name)
+                    means.append(mean)
+                    stdevs.append(stdev)
+                    volumes.append(volume)
+                    arb_volumes.append(arb_volume)
+                    colors.append(color)
+                    markers.append(None)
                 
         end = time.time()
         print(f"{typo}: time={end - start}s")
 
     plt.rcParams["figure.figsize"] = [16, 9]
     fig, ax = plt.subplots(1, 1)
-
-    ax.scatter(np.array(stdevs), np.array(means), c=colors, alpha=0.5)
+    
+    for m in set(markers):
+        ids = [i for i in range(len(markers)) if markers[i] == m]
+        ax.scatter(np.array([stdevs[i] for i in ids]), np.array([means[i] for i in ids]), marker=m, s=50, c=[colors[i] for i in ids], alpha=0.5)
     ax.set_xlabel('Standard deviation of PnL - PnL Hodl (in %s) after %.1f day(s)' % (currencies[0], t_sim))
     ax.set_ylabel('Mean of PnL - PnL Hodl (in %s) after %.1f day(s)' % (currencies[0], t_sim))
     ax.set_title('Statistics of PnL - PnL Hodl (in %s) after %.1f day(s) for different LP strategies' % (currencies[0], t_sim))
