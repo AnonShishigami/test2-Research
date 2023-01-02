@@ -76,7 +76,7 @@ class CurveV2(BaseLiquidityProvider):
         )
         self.last_requested_nb_coins_1 = dy / curve_v2_swap.PRECISION
         self.last_price = swap_price_01
-        return p, 0
+        return p, 0, 0
 
     def pricing_function_10(self, nb_coins_0, swap_price_10):
         if swap_price_10 == 1:
@@ -89,7 +89,7 @@ class CurveV2(BaseLiquidityProvider):
         )
         self.last_requested_nb_coins_0 = dy / curve_v2_swap.PRECISION
         self.last_price = 1 / swap_price_10
-        return p, 0
+        return p, 0, 0
 
     def _get_sc_state(self):
         return copy.deepcopy(self.smart_contract)
@@ -122,8 +122,8 @@ class CurveV2(BaseLiquidityProvider):
                 dy = self.process_exchange(self.asset_0_index, self.asset_1_index, self.last_sell_amount_0) / curve_v2_swap.PRECISION
                 assert dy == self.last_requested_nb_coins_1
 
-                self.inventories[0] = self.smart_contract.balances[0] / curve_v2_swap.PRECISION  # += self.last_requested_nb_coins_1 * self.last_answer_01 - self.last_cashed_01
-                self.inventories[1] = self.smart_contract.balances[1] / curve_v2_swap.PRECISION  # -= self.last_requested_nb_coins_1
+                self.inventories[0] = self.smart_contract.balances[0] / curve_v2_swap.PRECISION
+                self.inventories[1] = self.smart_contract.balances[1] / curve_v2_swap.PRECISION
 
                 self.cash += self.last_cashed_01
             except Exception as e:
@@ -138,8 +138,8 @@ class CurveV2(BaseLiquidityProvider):
                 dy = self.process_exchange(self.asset_1_index, self.asset_0_index, self.last_sell_amount_1) / curve_v2_swap.PRECISION
                 assert dy == self.last_requested_nb_coins_0
 
-                self.inventories[0] = self.smart_contract.balances[0] / curve_v2_swap.PRECISION  # += self.last_requested_nb_coins_0 - self.last_cashed_10
-                self.inventories[1] = self.smart_contract.balances[1] / curve_v2_swap.PRECISION  # -= self.last_requested_nb_coins_0 * self.last_answer_10
+                self.inventories[0] = self.smart_contract.balances[0] / curve_v2_swap.PRECISION
+                self.inventories[1] = self.smart_contract.balances[1] / curve_v2_swap.PRECISION
 
                 self.cash += self.last_cashed_10
             except Exception as e:

@@ -10,7 +10,7 @@ class BaseLiquidityProvider:
         self.name = name
         self.initial_inventories = initial_inventories.copy()
         self.initial_cash = initial_cash
-        self.inventories = initial_inventories
+        self.inventories = initial_inventories.copy()
         self.cash = initial_cash
         self.oracle = oracle
         self.market = market
@@ -22,20 +22,22 @@ class BaseLiquidityProvider:
         self.last_cashed_01 = None
         self.last_cashed_10 = None
         self._pause = False
+        self.unpeg_ratio = None
 
     def pricing_function_01(self, nb_coins_1, swap_price_01):
-        return np.inf, 0.
+        return np.inf, 0., 0.
 
     def pricing_function_10(self, nb_coins_0, swap_price_10):
-        return np.inf, 0.
+        return np.inf, 0., 0.
 
     def proposed_swap_prices_01(self, nb_coins_1):
 
         self.last_requested_nb_coins_1 = nb_coins_1
         swap_price_01 = self.oracle.get()
-        answer, cashed = self.pricing_function_01(nb_coins_1, swap_price_01)
+        answer, cashed, giveback = self.pricing_function_01(nb_coins_1, swap_price_01)
         self.last_answer_01 = answer
         self.last_cashed_01 = cashed
+        self.giveback_01 = giveback
 
         return answer
 
@@ -43,9 +45,10 @@ class BaseLiquidityProvider:
 
         self.last_requested_nb_coins_0 = nb_coins_0
         swap_price_10 = 1. / self.oracle.get()
-        answer, cashed = self.pricing_function_10(nb_coins_0, swap_price_10)
+        answer, cashed, giveback = self.pricing_function_10(nb_coins_0, swap_price_10)
         self.last_answer_10 = answer
         self.last_cashed_10 = cashed
+        self.giveback_10 = giveback
 
         return answer
 
@@ -60,8 +63,8 @@ class BaseLiquidityProvider:
     def update_10(self, trade_10):
 
         if trade_10 == 1:
-            self.inventories[1] += self.last_requested_nb_coins_0 * self.last_answer_10
-            self.inventories[0] -= self.last_requested_nb_coins_0 - self.last_cashed_10
+            self.inventories[1] += self.last_requested_nb_coins_0 * self.last_answer_10 - self.giveback_10
+            self.inventories[0] -= self.last_requested_nb_coins_0
             self.cash += self.last_cashed_10
         return True
 
@@ -80,6 +83,8 @@ class BaseLiquidityProvider:
 
     def _arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio, *args, **kwargs):
 
+        last_price_01 = self.oracle.get()
+
         state = self.get_state()
 
         s = self.inventories[1] / step_ratio
@@ -88,7 +93,7 @@ class BaseLiquidityProvider:
         ok = 0
         while ko < 4 and ok < step_ratio:
             proposed_swap_price_01 = self.proposed_swap_prices_01(s)
-            if proposed_swap_price_01 * (1 + relative_cost) > swap_price_01:
+            if (proposed_swap_price_01 * (1 + relative_cost) > swap_price_01) or (self.unpeg_ratio is not None and proposed_swap_price_01 / last_price_01 >= self.unpeg_ratio):
                 s /= 2
                 ko += 1
             else:
@@ -107,6 +112,8 @@ class BaseLiquidityProvider:
         return amount
 
     def _arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio, *args, **kwargs):
+        
+        last_price_10 = 1 / self.oracle.get()
 
         state = self.get_state()
 
@@ -116,7 +123,7 @@ class BaseLiquidityProvider:
         ok = 0
         while ko < 4 and ok < step_ratio:
             proposed_swap_price_10 = self.proposed_swap_prices_10(s)
-            if proposed_swap_price_10 * (1 + relative_cost) > swap_price_10:
+            if (proposed_swap_price_10 * (1 + relative_cost) > swap_price_10) or (self.unpeg_ratio is not None and proposed_swap_price_10 / last_price_10 >= self.unpeg_ratio):
                 s /= 2
                 ko += 1
             else:

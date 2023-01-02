@@ -24,24 +24,24 @@ class BestClosedForm(BaseLiquidityProvider):
     def pricing_function_01(self, nb_coins_1, swap_price_01):
 
         if self.inventories[1] < nb_coins_1:
-            return np.inf, 0.
+            return np.inf, 0., 0.
 
         hodl_spread = (self.inventories[1] - self.initial_inventories[1]) * swap_price_01
         size = nb_coins_1 * swap_price_01
         z_index = np.argmin(np.abs(self.market.sizes-size))
         p = -2. * self.a * hodl_spread - self.b + size * self.a
         delta = self.lts_01[z_index].delta(p)
-        return swap_price_01 * (1. + delta), delta * nb_coins_1 * swap_price_01
+        return swap_price_01 * (1. + delta), delta * nb_coins_1 * swap_price_01, 0
 
     def pricing_function_10(self, nb_coins_0, swap_price_10):
 
         if self.inventories[0] < nb_coins_0:
-            return np.inf, 0.
+            return np.inf, 0., 0.
 
         hodl_spread = (self.inventories[1] - self.initial_inventories[1]) / swap_price_10
         size = nb_coins_0
         z_index = np.argmin(np.abs(self.market.sizes-size))
         p = 2. * self.a * hodl_spread + self.b + size * self.a
         delta = self.lts_10[z_index].delta(p)
-        return swap_price_10 * (1. + delta), delta * nb_coins_0
+        return swap_price_10 * (1. + delta), delta * nb_coins_0, delta * nb_coins_0 * swap_price_10
 

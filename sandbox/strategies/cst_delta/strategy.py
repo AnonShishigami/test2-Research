@@ -11,15 +11,15 @@ class CstDelta(BaseLiquidityProvider):
 
     def pricing_function_01(self, nb_coins_1, swap_price_01):
         if self.inventories[1] < nb_coins_1:
-            return np.inf, 0.
+            return np.inf, 0., 0.
         else:
-            return swap_price_01 * (1. + self.delta), self.delta * nb_coins_1 * swap_price_01
+            return swap_price_01 * (1. + self.delta), self.delta * nb_coins_1 * swap_price_01, 0
 
     def pricing_function_10(self, nb_coins_0, swap_price_10):
         if self.inventories[0] < nb_coins_0:
-            return np.inf, 0.
+            return np.inf, 0., 0.
         else:
-            return swap_price_10 * (1. + self.delta), self.delta * nb_coins_0
+            return swap_price_10 * (1. + self.delta), self.delta * nb_coins_0, self.delta * nb_coins_0 * swap_price_10
 
     def _arb_01(self, swap_price_01, relative_cost, fixed_cost, *args, **kwargs):
         if self.oracle.get() * (1 + relative_cost) > swap_price_01:
@@ -29,7 +29,7 @@ class CstDelta(BaseLiquidityProvider):
         self.update_01(1)
         return amount
 
-    def _arb_10(self, timswap_price_10, relative_cost, fixed_cost, *args, **kwargs):
+    def _arb_10(self, swap_price_10, relative_cost, fixed_cost, *args, **kwargs):
         if 1. / self.oracle.get() * (1 + relative_cost) > swap_price_10:
             return 0
         amount = self.inventories[0]

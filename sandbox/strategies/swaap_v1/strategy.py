@@ -10,9 +10,9 @@ class SwaapV1(CFMMSqrt):
         self, name, initial_inventories, initial_cash, market, oracle, support_arb, delta,
         z, horizon, lookback_calls, lookback_step,
         concentration=1, 
-        unpeg_tolerance=2.5 / 100,
-        bot_pause_threshold=5 / 100,
-        bot_unpause_threshold=0.15 / 100,
+        unpeg_tolerance=2.5/100,
+        bot_pause_threshold=5/100,
+        bot_unpause_threshold=0.15/100,
     ):
         super().__init__(name, initial_inventories, initial_cash, market, oracle, support_arb, delta, concentration=concentration)
 
@@ -55,18 +55,17 @@ class SwaapV1(CFMMSqrt):
         )
 
     def pricing_function_10(self, nb_coins_0, swap_price_10):
-        p, cash = self.pricing_function_wrapper(
+        return self.pricing_function_wrapper(
             nb_coins_0,
             swap_price_10,
             0,
         )
-        return p, cash
 
     def pricing_function_wrapper(self, amount_out, price, index_out):
         if self.is_pause():
-            return np.inf, 0.
+            return np.inf, 0., 0.
         if min(self.concentrated_inventories[index_out], self.inventories[index_out]) < amount_out:
-            return np.inf, 0.
+            return np.inf, 0., 0.
         index_in = 0 if index_out == 1 else 1
         dynamic_weights = self.get_dynamic_weights(price, index_out)
         price = self.pricing_function(
@@ -79,11 +78,11 @@ class SwaapV1(CFMMSqrt):
             price,
             self.delta
         )
-        return price, 0.
+        return price, 0., 0.
 
     def pricing_function(self, r_in, index_in, r_out, index_out, dynamic_weights, amount_out, price_out, delta):
         if r_out <= amount_out:
-            return np.inf, 0.
+            return np.inf, 0., 0.
         else:
 
             eq_r_in = r_in
@@ -193,67 +192,6 @@ class SwaapV1(CFMMSqrt):
     def get_in_reserve_at_price(r_in, w_in, r_out, w_out, price):
         r_in_eq = ((price * w_in / w_out * r_out) ** w_out) * r_in ** w_in
         return r_in_eq
-    
-    # TODO: remove this and improve inheritance with cfmmpowers and concentrated liquidity feature
-    def _arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio, *args, **kwargs):
-
-        last_price_01 = self.oracle.get()
-
-        state = self.get_state()
-
-        s = self.inventories[1] / step_ratio
-        amount = 0
-        ko = 0
-        ok = 0
-        while ko < 4 and ok < step_ratio:
-            proposed_swap_price_01 = self.proposed_swap_prices_01(s)
-            if (proposed_swap_price_01 * (1 + relative_cost) > swap_price_01) or (proposed_swap_price_01 / last_price_01 >= self.unpeg_ratio):
-                s /= 2
-                ko += 1
-            else:
-                success = self.update_01(1)
-                if not success:
-                    break
-                amount += s
-                ok += 1
-
-        if amount:
-            self.restore_state(state)
-            proposed_swap_price_01 = self.proposed_swap_prices_01(amount)
-            if proposed_swap_price_01 * (1 + relative_cost) <= swap_price_01:
-                self.update_01(1)
-
-        return amount
-
-    def _arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio, *args, **kwargs):
-        
-        last_price_10 = 1 / self.oracle.get()
-
-        state = self.get_state()
-
-        s = self.inventories[0] / step_ratio
-        amount = 0
-        ko = 0
-        ok = 0
-        while ko < 4 and ok < step_ratio:
-            proposed_swap_price_10 = self.proposed_swap_prices_10(s)
-            if (proposed_swap_price_10 * (1 + relative_cost) > swap_price_10) or (proposed_swap_price_10 / last_price_10 >= self.unpeg_ratio):
-                s /= 2
-                ko += 1
-            else:
-                success = self.update_10(1)
-                if not success:
-                    break
-                amount += s
-                ok += 1
-
-        if amount:
-            self.restore_state(state)
-            proposed_swap_price_10 = self.proposed_swap_prices_10(amount)
-            if proposed_swap_price_10 * (1 + relative_cost) <= swap_price_10:
-                self.update_10(1)
-
-        return amount
 
     def bot(self, market_price_01, *args, **kwargs):
         try:
