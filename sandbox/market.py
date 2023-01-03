@@ -165,7 +165,7 @@ class Market:
             v = 0.001 # standard deviation of jump
             lam = 1000 # intensity of jump i.e. number of jumps per annum
             steps = nb_t # time steps
-            sigma = self.sigma # annaul standard deviation , for weiner process
+            sigma = self.sigma # annaul standard deviation , for wiener process
             return self.merton_jump_paths(S, dt, r, sigma, lam, m, v, steps)
         elif process_type == "gbm":
             market_swap_prices_01 = np.zeros([nb_t])
