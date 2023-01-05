@@ -19,23 +19,23 @@ class SwaapV2(BaseLiquidityProvider):
         self.mu = self.market.mu
 
         self._target_inventories = self.initial_inventories.copy()
-        self.update_gamma(gamma)
         self.collected_fees_01 = 0
         self.collected_fees_10 = 0
         self.unpeg_ratio = 1 + unpeg_tolerance
         self.delta_safety_margin = self.get_european_call_option_price(uncertainty_pricing_horizon, self.sigma)
 
-    def update_gamma(self, gamma):
-        self.gamma = gamma
         self.lts_01 = [LogisticTools(obj.lambda_, obj.a, obj.b) for obj in self.market.intensities_functions_01_object]
         self.lts_10 = [LogisticTools(obj.lambda_, obj.a, obj.b) for obj in self.market.intensities_functions_10_object]
+        self.plus21 = np.sum(np.array([z * (self.lts_01[k].H_second(0.) + self.lts_10[k].H_second(0.))  for k,z in enumerate(self.market.sizes)]))
+        self.minus22 = np.sum(np.array([z**2 * (self.lts_01[k].H_second(0.) - self.lts_10[k].H_second(0.)) for k, z in enumerate(self.market.sizes)]))
+        self.minus11 = np.sum(np.array([z * (self.lts_01[k].H_prime(0.) - self.lts_10[k].H_prime(0.)) for k, z in enumerate(self.market.sizes)]))
+        self.update_gamma(gamma)
 
-        plus21 = np.sum(np.array([z * (self.lts_01[k].H_second(0.) + self.lts_10[k].H_second(0.))  for k,z in enumerate(self.market.sizes)]))
-        minus22 = np.sum(np.array([z**2 * (self.lts_01[k].H_second(0.) - self.lts_10[k].H_second(0.)) for k, z in enumerate(self.market.sizes)]))
-        minus11 = np.sum(np.array([z * (self.lts_01[k].H_prime(0.) - self.lts_10[k].H_prime(0.)) for k, z in enumerate(self.market.sizes)]))
 
-        self.a = (self.sigma**2 + np.sqrt(self.sigma**4 + 4. * self.gamma * self.sigma**2 * plus21)) / (4. * plus21)
-        self.b = - (0.5 * self.mu / self.a + minus11 - minus22 * self.a) / plus21
+    def update_gamma(self, gamma):
+        self.gamma = gamma
+        self.a = (self.sigma**2 + np.sqrt(self.sigma**4 + 4. * self.gamma * self.sigma**2 * self.plus21)) / (4. * self.plus21)
+        self.b = - (0.5 * self.mu / self.a + self.minus11 - self.minus22 * self.a) / self.plus21
 
     def pricing_function_01(self, nb_coins_1, swap_price_01):
 
