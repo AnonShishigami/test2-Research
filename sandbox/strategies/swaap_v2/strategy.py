@@ -31,7 +31,6 @@ class SwaapV2(BaseLiquidityProvider):
         self.minus11 = np.sum(np.array([z * (self.lts_01[k].H_prime(0.) - self.lts_10[k].H_prime(0.)) for k, z in enumerate(self.market.sizes)]))
         self.update_gamma(gamma)
 
-
     def update_gamma(self, gamma):
         self.gamma = gamma
         self.a = (self.sigma**2 + np.sqrt(self.sigma**4 + 4. * self.gamma * self.sigma**2 * self.plus21)) / (4. * self.plus21)
@@ -113,3 +112,12 @@ class SwaapV2(BaseLiquidityProvider):
     @staticmethod
     def _tvl(price, reserves):
         return reserves[0] + reserves[1] * price
+
+    def get_state(self):
+        return super().get_state() | {
+            "target_inventories": self._target_inventories,
+        }
+
+    def restore_state(self, state):
+        super().restore_state(state)
+        self._target_inventories = state["target_inventories"]

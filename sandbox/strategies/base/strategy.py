@@ -88,6 +88,7 @@ class BaseLiquidityProvider:
         state = self.get_state()
 
         s = self.inventories[1] / step_ratio
+        last_succesful_s = s
         amount = 0
         ko = 0
         ok = 0
@@ -101,13 +102,20 @@ class BaseLiquidityProvider:
                 if not success:
                     break
                 amount += s
+                last_succesful_s = s
                 ok += 1
 
         if amount:
             self.restore_state(state)
             proposed_swap_price_01 = self.proposed_swap_prices_01(amount)
-            if proposed_swap_price_01 * (1 + relative_cost) <= swap_price_01:
+            if proposed_swap_price_01 * (1 + relative_cost) < swap_price_01:
                 self.update_01(1)
+            elif ok > 1:
+                proposed_swap_price_10 = self.proposed_swap_prices_10(amount - last_succesful_s)
+                if proposed_swap_price_10 * (1 + relative_cost) < swap_price_01:
+                    self.update_10(1)
+                else:
+                    amount = 0
 
         return amount
 
@@ -118,6 +126,7 @@ class BaseLiquidityProvider:
         state = self.get_state()
 
         s = self.inventories[0] / step_ratio
+        last_succesful_s = 0
         amount = 0
         ko = 0
         ok = 0
@@ -131,14 +140,21 @@ class BaseLiquidityProvider:
                 if not success:
                     break
                 amount += s
+                last_succesful_s = s
                 ok += 1
 
         if amount:
             self.restore_state(state)
             proposed_swap_price_10 = self.proposed_swap_prices_10(amount)
-            if proposed_swap_price_10 * (1 + relative_cost) <= swap_price_10:
+            if proposed_swap_price_10 * (1 + relative_cost) < swap_price_10:
                 self.update_10(1)
-
+            elif ok > 1:
+                proposed_swap_price_10 = self.proposed_swap_prices_10(amount - last_succesful_s)
+                if proposed_swap_price_10 * (1 + relative_cost) < swap_price_10:
+                    self.update_10(1)
+                else:
+                    amount = 0
+            
         return amount
 
     def restore_state(self, state):
