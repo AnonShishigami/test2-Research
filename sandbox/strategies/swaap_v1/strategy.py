@@ -203,3 +203,10 @@ class SwaapV1(CFMMSqrt):
                 self.pause()
             elif abs(market_price_01 / oracle_price_01 - 1) < self.bot_unpause_threshold:
                 self.unpause()
+    
+    def _arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
+        return BaseLiquidityProvider._arb_01(self, swap_price_01, relative_cost, fixed_cost, step_ratio, *args, **kwargs)
+    
+    def _arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio=50000, *args, **kwargs):
+        return BaseLiquidityProvider._arb_10(self, swap_price_10, relative_cost, fixed_cost, step_ratio, *args, **kwargs)
+    
