@@ -735,7 +735,7 @@ def main():
                 color = "pink"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            gammas = [5 * 10**-1, 10**-2, 5 * 10**-2, 10**-3, 5 * 10**-3,  10**-4]
+            gammas = [5 * 10**-1, 10**-2, 5 * 10**-2] #, 10**-3, 5 * 10**-3,  10**-4]
             jobs = []
             for gamma in gammas:
                 lp_params = (typo, initial_inventories, initial_cash, gamma)
@@ -790,7 +790,7 @@ def main():
                 color = "black"
             else:
                 raise ValueError("Unrecognized typo:", typo)
-            gammas = [5 * 10**-1, 10**-2, 5 * 10**-2, 10**-3, 5 * 10**-3,  10**-4]
+            gammas = [5 * 10**-1, 10**-2, 5 * 10**-2] #, 10**-3, 5 * 10**-3,  10**-4]
             jobs = []
             for gamma in gammas:
                 lp_params = (typo, initial_inventories, initial_cash, gamma)
